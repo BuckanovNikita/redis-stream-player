@@ -1,0 +1,13 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6389:6379"
+  redisinsight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+    volumes:
+      - ./redisinsight-provisioning:/data/

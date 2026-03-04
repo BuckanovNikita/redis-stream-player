@@ -1,0 +1,124 @@
+[project]
+name = "redis-stream-player"
+version = "0.1.0"
+description = "Record and replay Redis stream data"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "redis>=5.0,<6.0",
+    "msgpack>=1.0,<2.0",
+    "hydra-core>=1.3,<2.0",
+    "omegaconf>=2.3",
+    "pyarrow>=15.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-mock",
+    "pytest-xdist",
+    "mypy",
+    "ruff",
+    "pre-commit",
+    "vulture",
+    "import-linter",
+    "types-pyyaml",
+    "types-redis",
+    "types-tqdm",
+    "fakeredis",
+]
+
+[project.scripts]
+redis-stream-record = "redis_stream_player.cli:record_main"
+redis-stream-play = "redis_stream_player.cli:play_main"
+redis-stream-convert = "redis_stream_player.cli:convert_main"
+redis-stream-truncate = "redis_stream_player.cli:truncate_main"
+redis-stream-info = "redis_stream_player.cli:info_main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/redis_stream_player"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",
+    "ISC001",
+    "EM",
+    "TRY003",
+    "D213",
+    "D203",
+    "PLR2004",
+    "PERF203",
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D", "ANN"]
+"src/redis_stream_player/cli.py" = ["PLC0415"]
+"src/redis_stream_player/tools.py" = ["PLC0415"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["msgpack.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pyarrow.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_decorators = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short -n auto"
+markers = ["integration: integration tests requiring Docker Redis"]
+
+[tool.vulture]
+min_confidence = 80
+paths = ["src/redis_stream_player"]
+
+[tool.importlinter]
+root_package = "redis_stream_player"
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture"
+type = "layers"
+layers = [
+    "redis_stream_player.cli",
+    "redis_stream_player.recorder | redis_stream_player.player | redis_stream_player.tools",
+    "redis_stream_player.io",
+    "redis_stream_player.models",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain isolation"
+type = "forbidden"
+source_modules = ["redis_stream_player.models"]
+forbidden_modules = [
+    "redis_stream_player.io",
+    "redis_stream_player.recorder",
+    "redis_stream_player.player",
+    "redis_stream_player.tools",
+    "redis_stream_player.cli",
+]

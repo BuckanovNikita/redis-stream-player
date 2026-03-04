@@ -1,0 +1,4 @@
+input: recording.msgpack
+output: recording.parquet
+format: parquet
+verbose: false

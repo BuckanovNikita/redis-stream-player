@@ -1,0 +1,9 @@
+defaults:
+  - redis: local
+  - streams: sensors
+
+input: recording.msgpack
+speed: 1.0
+max_delay: 60.0
+batch_size: 1000
+verbose: false
