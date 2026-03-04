@@ -67,6 +67,13 @@ def parse_stream_configs(raw_streams: list[Any]) -> list[StreamConfig]:
         else:
             msg = f"Unsupported stream config format: {item!r}"
             raise TypeError(msg)
+    for cfg in configs:
+        logger.debug(
+            "Parsed stream config: key=%s, ts_field=%s, ts_mode=%s",
+            cfg.key,
+            cfg.timestamp_field,
+            cfg.timestamp_mode.value,
+        )
     return configs
 
 
@@ -82,6 +89,7 @@ class RecordWriter:
         self._file = self._path.open("ab")
         self._packer = msgpack.Packer(use_bin_type=True)
         self._count = 0
+        logger.debug("RecordWriter opened: %s", self._path)
 
     @property
     def path(self) -> str:
@@ -111,6 +119,7 @@ class RecordWriter:
 
         Returns the new file path.
         """
+        logger.debug("Closing %s (%d records)", self._path, self._count)
         self._file.flush()
         os.fsync(self._file.fileno())
         self._file.close()
@@ -123,6 +132,7 @@ class RecordWriter:
 
         self._file = self._path.open("ab")
         self._count = 0
+        logger.debug("Opened new file: %s", self._path)
         return str(self._path)
 
     def close(self) -> None:
@@ -131,6 +141,11 @@ class RecordWriter:
             self._file.flush()
             os.fsync(self._file.fileno())
             self._file.close()
+            logger.debug(
+                "RecordWriter closed: %s (%d records)",
+                self._path,
+                self._count,
+            )
 
     def __enter__(self) -> Self:
         """Enter context manager."""
@@ -166,10 +181,13 @@ class RecordReader:
         Truncated trailing records are silently skipped with a log warning.
         """
         if not self._path.exists():
+            logger.warning("File does not exist: %s", self._path)
             return
         if self._path.stat().st_size == 0:
+            logger.warning("File is empty: %s", self._path)
             return
 
+        count = 0
         with self._path.open("rb") as f:
             unpacker = msgpack.Unpacker(f, raw=False, max_buffer_size=0)
             try:
@@ -179,6 +197,7 @@ class RecordReader:
                         continue
                     stream_name, message_id_str, fields = obj
                     mid = MessageID.parse(str(message_id_str))
+                    count += 1
                     yield StreamRecord(
                         stream_name=str(stream_name),
                         message_id=mid,
@@ -189,3 +208,4 @@ class RecordReader:
                     "Truncated file at %s, stopped at last complete record",
                     self._path,
                 )
+        logger.debug("RecordReader read %d records from %s", count, self._path)

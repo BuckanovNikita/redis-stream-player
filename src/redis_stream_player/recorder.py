@@ -38,6 +38,13 @@ class Recorder:
         self._sub_thread: threading.Thread | None = None
         self._client: redis_lib.Redis[bytes] | None = None
         self._progress: tqdm[Any] | None = None
+        logger.debug(
+            "Recorder: output=%s, batch=%s, duration=%s, size_mb=%s",
+            conf.output,
+            conf.batch_size,
+            conf.max_duration,
+            conf.max_size_mb,
+        )
 
     def _handle_signal(self, _signum: int, _frame: FrameType | None) -> None:
         if not self._running:
@@ -74,6 +81,7 @@ class Recorder:
             name="rotation-listener",
         )
         self._sub_thread.start()
+        logger.debug("Rotation subscription thread started on key=%s", rotate_key)
 
     def run(self) -> None:
         """Run the recording loop until signal or limits reached."""
@@ -213,6 +221,15 @@ class Recorder:
             if result is None:
                 continue
 
+            logger.debug(
+                "XREAD returned %d stream(s): %s",
+                len(result),
+                ", ".join(
+                    f"{s[0].decode() if isinstance(s[0], bytes) else s[0]}={len(s[1])}"
+                    for s in result
+                ),
+            )
+
             batch_count = self._process_xread_result(
                 result,
                 stream_keys,
@@ -236,11 +253,15 @@ class Recorder:
         batch_count = 0
         for stream_data in result:
             stream_name_bytes, messages = stream_data
-            stream_name = (
-                stream_name_bytes.decode()
-                if isinstance(stream_name_bytes, bytes)
-                else str(stream_name_bytes)
-            )
+            try:
+                stream_name = (
+                    stream_name_bytes.decode()
+                    if isinstance(stream_name_bytes, bytes)
+                    else str(stream_name_bytes)
+                )
+            except (UnicodeDecodeError, AttributeError):
+                logger.exception("Failed to decode stream name: %r", stream_name_bytes)
+                continue
 
             if stream_name not in stream_keys:
                 if stream_name not in warned_streams:
@@ -249,16 +270,29 @@ class Recorder:
                 continue
 
             for msg_id_bytes, fields_raw in messages:
-                msg_id_str = (
-                    msg_id_bytes.decode()
-                    if isinstance(msg_id_bytes, bytes)
-                    else str(msg_id_bytes)
-                )
+                try:
+                    msg_id_str = (
+                        msg_id_bytes.decode()
+                        if isinstance(msg_id_bytes, bytes)
+                        else str(msg_id_bytes)
+                    )
+                except (UnicodeDecodeError, AttributeError):
+                    logger.exception("Failed to decode message ID: %r", msg_id_bytes)
+                    continue
+
                 fields: dict[str, object] = {}
-                for k, v in fields_raw.items():
-                    key_str = k.decode() if isinstance(k, bytes) else str(k)
-                    val = v.decode() if isinstance(v, bytes) else v
-                    fields[key_str] = val
+                try:
+                    for k, v in fields_raw.items():
+                        key_str = k.decode() if isinstance(k, bytes) else str(k)
+                        val = v.decode() if isinstance(v, bytes) else v
+                        fields[key_str] = val
+                except (UnicodeDecodeError, AttributeError):
+                    logger.exception(
+                        "Failed to decode fields for %s/%s",
+                        stream_name,
+                        msg_id_str,
+                    )
+                    continue
 
                 mid = MessageID.parse(msg_id_str)
                 record = StreamRecord(

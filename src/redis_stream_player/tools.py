@@ -28,6 +28,12 @@ class Converter:
 
     def run(self) -> None:
         """Read msgpack and write to the configured output format."""
+        logger.info(
+            "Converting %s to %s -> %s",
+            self._conf.input,
+            self._conf.format,
+            self._conf.output,
+        )
         reader = RecordReader(self._conf.input)
         fmt = self._conf.format.lower()
 
@@ -64,6 +70,7 @@ class Converter:
             progress.update(1)
 
         progress.close()
+        logger.debug("Read %d records for conversion", len(rows))
 
         if not rows:
             logger.info("No records found, output file not created")
@@ -112,6 +119,13 @@ class Truncator:
 
     def run(self) -> None:
         """Read input, filter by ID range, write to output."""
+        logger.info(
+            "Truncating %s -> %s (from_id=%s, to_id=%s)",
+            self._conf.input,
+            self._conf.output,
+            self._conf.from_id,
+            self._conf.to_id,
+        )
         reader = RecordReader(self._conf.input)
 
         from_id: MessageID | None = None
@@ -146,12 +160,15 @@ class Truncator:
         )
 
         count = 0
+        skipped = 0
         with RecordWriter(self._conf.output) as writer:
             for record in reader:
                 if from_id is not None and record.message_id < from_id:
+                    skipped += 1
                     progress.update(1)
                     continue
                 if to_id is not None and record.message_id > to_id:
+                    skipped += 1
                     progress.update(1)
                     continue
                 writer.write(record)
@@ -159,6 +176,7 @@ class Truncator:
                 progress.update(1)
 
         progress.close()
+        logger.debug("Skipped %d records outside range", skipped)
         logger.info(
             "Truncated: %d records written to %s",
             count,
@@ -193,6 +211,7 @@ class Info:
 
     def run(self) -> None:
         """Scan the file and print per-stream statistics."""
+        logger.info("Inspecting file: %s", self._conf.input)
         reader = RecordReader(self._conf.input)
 
         try:
