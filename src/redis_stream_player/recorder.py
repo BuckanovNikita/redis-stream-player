@@ -86,6 +86,12 @@ class Recorder:
         signal.signal(signal.SIGTERM, self._handle_signal)
 
         self._client = create_redis(self._conf.redis)
+        self._client.ping()
+        logger.info(
+            "Connected to Redis at %s:%s",
+            self._conf.redis.host,
+            self._conf.redis.port,
+        )
         self._redis = self._client
 
         self._subscribe_rotation(self._client)
@@ -94,6 +100,8 @@ class Recorder:
         if not stream_keys:
             logger.error("No streams configured")
             return
+
+        logger.info("Recording streams: %s", ", ".join(stream_keys))
 
         last_ids: dict[str, str] = {}
         for key in stream_keys:

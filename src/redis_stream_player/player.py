@@ -110,7 +110,17 @@ class Player:
         signal.signal(signal.SIGTERM, self._handle_signal)
 
         self._client = create_redis(self._conf.redis)
+        self._client.ping()
+        logger.info(
+            "Connected to Redis at %s:%s",
+            self._conf.redis.host,
+            self._conf.redis.port,
+        )
         reader = RecordReader(self._conf.input)
+        logger.info(
+            "Playing streams: %s",
+            ", ".join(sc.key for sc in self._stream_configs),
+        )
 
         batch_size = self._conf.batch_size
 
