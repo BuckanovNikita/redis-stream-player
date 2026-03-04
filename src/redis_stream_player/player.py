@@ -51,6 +51,13 @@ class Player:
         self._stop_event = threading.Event()
         self._client: redis_lib.Redis[bytes] | None = None
         self._progress: tqdm[Any] | None = None
+        logger.debug(
+            "Player config: input=%s, speed=%s, max_delay=%s, batch_size=%s",
+            conf.input,
+            conf.speed,
+            conf.max_delay,
+            conf.batch_size,
+        )
 
     def _handle_signal(self, _signum: int, _frame: FrameType | None) -> None:
         if not self._running:
@@ -177,6 +184,38 @@ class Player:
 
         logger.info("Playback complete: %d messages replayed", replayed)
 
+    def _prepare_fields(
+        self,
+        record: StreamRecord,
+    ) -> dict[str, str | bytes]:
+        """Prepare XADD fields from a record, applying timestamp adjustments."""
+        config = self._config_map.get(record.stream_name)
+        fields = record.fields
+        if config is not None:
+            fields = self._adjust_timestamp(config, fields, record.message_id)
+
+        xadd_fields: dict[str, str | bytes] = {}
+        for k, v in fields.items():
+            xadd_fields[str(k)] = str(v) if not isinstance(v, bytes) else v
+        return xadd_fields
+
+    def _flush_pipeline(
+        self,
+        pipe: redis_lib.client.Pipeline[bytes],
+        pipe_meta: list[tuple[str, list[str]]],
+    ) -> None:
+        """Execute a pipeline and log any per-command failures."""
+        results = pipe.execute(raise_on_error=False)
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                stream_name, field_keys = pipe_meta[i]
+                logger.error(
+                    "Failed to XADD to %s (fields: %s): %s",
+                    stream_name,
+                    field_keys,
+                    result,
+                )
+
     def _replay_batch(
         self,
         batch: list[StreamRecord],
@@ -192,9 +231,14 @@ class Player:
         max_delay = self._conf.max_delay
 
         batch.sort(key=lambda r: r.message_id)
+        logger.debug("Replaying batch of %d records", len(batch))
 
         local_prev_id = prev_msg_id
         local_prev_mono = prev_mono
+
+        pipe = client.pipeline(transaction=False)
+        pipe_count = 0
+        pipe_meta: list[tuple[str, list[str]]] = []
 
         for record in batch:
             if not self._running:
@@ -204,26 +248,33 @@ class Player:
                 delta_ms = record.message_id.ms - local_prev_id.ms
                 if delta_ms > 0:
                     delay = min((delta_ms / 1000.0) / speed, max_delay)
-                    if delay > 0 and self._stop_event.wait(timeout=delay):
-                        break
+                    logger.debug(
+                        "Delay %.3fs (delta_ms=%d, speed=%.1f)",
+                        delay,
+                        delta_ms,
+                        speed,
+                    )
+                    if delay > 0:
+                        # Flush pending commands before sleeping
+                        if pipe_count > 0:
+                            self._flush_pipeline(pipe, pipe_meta)
+                            progress.update(pipe_count)
+                            pipe = client.pipeline(transaction=False)
+                            pipe_count = 0
+                            pipe_meta = []
 
-            config = self._config_map.get(record.stream_name)
-            fields = record.fields
-            if config is not None:
-                fields = self._adjust_timestamp(config, fields, record.message_id)
+                        if self._stop_event.wait(timeout=delay):
+                            break
 
-            xadd_fields: dict[str, str | bytes] = {}
-            for k, v in fields.items():
-                xadd_fields[str(k)] = str(v) if not isinstance(v, bytes) else v
+            xadd_fields = self._prepare_fields(record)
+            pipe.xadd(record.stream_name, xadd_fields, id="*")
+            pipe_meta.append((record.stream_name, list(xadd_fields.keys())))
+            pipe_count += 1
 
-            try:
-                client.xadd(record.stream_name, xadd_fields, id="*")
-            except Exception:
-                logger.exception("Failed to XADD to %s", record.stream_name)
-                if not self._running:
-                    break
-                continue
-
-            progress.update(1)
             local_prev_id = record.message_id
             local_prev_mono = time.monotonic()
+
+        # Flush remaining commands
+        if pipe_count > 0:
+            self._flush_pipeline(pipe, pipe_meta)
+            progress.update(pipe_count)

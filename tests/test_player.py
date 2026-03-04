@@ -57,6 +57,9 @@ class TestPlayer:
     @patch("redis_stream_player.player.create_redis")
     def test_play_empty_file(self, mock_create_redis, tmp_path):
         mock_client = MagicMock()
+        mock_pipe = MagicMock()
+        mock_client.pipeline.return_value = mock_pipe
+        mock_pipe.execute.return_value = []
         mock_create_redis.return_value = mock_client
 
         fpath = tmp_path / "empty.msgpack"
@@ -65,23 +68,29 @@ class TestPlayer:
         conf = _make_play_conf(str(fpath))
         player = Player(conf)
         player.run()
-        mock_client.xadd.assert_not_called()
+        mock_pipe.xadd.assert_not_called()
 
     @patch("redis_stream_player.player.create_redis")
     def test_play_records(self, mock_create_redis, sample_msgpack):
         mock_client = MagicMock()
+        mock_pipe = MagicMock()
+        mock_client.pipeline.return_value = mock_pipe
+        mock_pipe.execute.return_value = []
         mock_create_redis.return_value = mock_client
 
         conf = _make_play_conf(str(sample_msgpack), speed=1000.0)
         player = Player(conf)
         player.run()
 
-        assert mock_client.xadd.call_count == 5
+        assert mock_pipe.xadd.call_count == 5
 
     @patch("redis_stream_player.player.create_redis")
     def test_play_sorts_by_message_id(self, mock_create_redis, tmp_path):
         """Records are replayed in MessageID order within batches."""
         mock_client = MagicMock()
+        mock_pipe = MagicMock()
+        mock_client.pipeline.return_value = mock_pipe
+        mock_pipe.execute.return_value = []
         mock_create_redis.return_value = mock_client
 
         fpath = tmp_path / "unsorted.msgpack"
@@ -98,7 +107,7 @@ class TestPlayer:
         player = Player(conf)
         player.run()
 
-        calls = mock_client.xadd.call_args_list
+        calls = mock_pipe.xadd.call_args_list
         assert len(calls) == 3
         assert calls[0].args[0] == "a"  # ms=100
         assert calls[1].args[0] == "b"  # ms=200
@@ -108,6 +117,9 @@ class TestPlayer:
     @patch("redis_stream_player.player.time")
     def test_timestamp_shift(self, mock_time, mock_create_redis, tmp_path):
         mock_client = MagicMock()
+        mock_pipe = MagicMock()
+        mock_client.pipeline.return_value = mock_pipe
+        mock_pipe.execute.return_value = []
         mock_create_redis.return_value = mock_client
         mock_time.monotonic.return_value = 0.0
         mock_time.time_ns.return_value = 1709312000300_000_000_000
@@ -125,7 +137,7 @@ class TestPlayer:
         player = Player(conf)
         player.run()
 
-        call = mock_client.xadd.call_args
+        call = mock_pipe.xadd.call_args
         fields = call.args[1]
         assert "ts_nano" in fields
 
