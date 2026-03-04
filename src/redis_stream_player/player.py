@@ -53,6 +53,8 @@ class Player:
         self._progress: tqdm[Any] | None = None
 
     def _handle_signal(self, _signum: int, _frame: FrameType | None) -> None:
+        if not self._running:
+            raise KeyboardInterrupt
         logger.info("Shutdown signal received, stopping...")
         self._running = False
         self._stop_event.set()

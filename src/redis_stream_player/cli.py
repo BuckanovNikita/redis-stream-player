@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -18,6 +21,18 @@ from redis_stream_player.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _run_safe(func: Callable[[], None]) -> None:
+    """Run a function with top-level error handling."""
+    try:
+        func()
+    except KeyboardInterrupt:
+        logger.info("Interrupted")
+        sys.exit(130)
+    except Exception:
+        logger.exception("Fatal error")
+        sys.exit(1)
 
 
 def _setup_logging(*, verbose: bool) -> None:
@@ -43,7 +58,7 @@ def record_main(cfg: DictConfig) -> None:
     merged = OmegaConf.merge(schema, cfg)
     conf = cast("RecordConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
-    Recorder(conf).run()
+    _run_safe(Recorder(conf).run)
 
 
 @hydra.main(
@@ -59,7 +74,7 @@ def play_main(cfg: DictConfig) -> None:
     merged = OmegaConf.merge(schema, cfg)
     conf = cast("PlayConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
-    Player(conf).run()
+    _run_safe(Player(conf).run)
 
 
 @hydra.main(
@@ -75,7 +90,7 @@ def convert_main(cfg: DictConfig) -> None:
     merged = OmegaConf.merge(schema, cfg)
     conf = cast("ConvertConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
-    Converter(conf).run()
+    _run_safe(Converter(conf).run)
 
 
 @hydra.main(
@@ -91,7 +106,7 @@ def truncate_main(cfg: DictConfig) -> None:
     merged = OmegaConf.merge(schema, cfg)
     conf = cast("TruncateConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
-    Truncator(conf).run()
+    _run_safe(Truncator(conf).run)
 
 
 @hydra.main(
@@ -107,4 +122,4 @@ def info_main(cfg: DictConfig) -> None:
     merged = OmegaConf.merge(schema, cfg)
     conf = cast("InfoConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
-    Info(conf).run()
+    _run_safe(Info(conf).run)
