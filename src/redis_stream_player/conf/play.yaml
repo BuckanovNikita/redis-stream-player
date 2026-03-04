@@ -1,6 +1,7 @@
 defaults:
   - redis: local
   - streams: sensors
+  - _self_
 
 input: recording.msgpack
 speed: 1.0

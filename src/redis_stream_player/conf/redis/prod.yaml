@@ -1,5 +1,4 @@
-redis:
-  host: prod-redis
-  port: 6379
-  db: 0
-  password: null
+host: prod-redis
+port: 6379
+db: 0
+password: null

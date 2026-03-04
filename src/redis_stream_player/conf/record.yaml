@@ -1,6 +1,7 @@
 defaults:
   - redis: local
   - streams: sensors
+  - _self_
 
 output: recording.msgpack
 from_beginning: false

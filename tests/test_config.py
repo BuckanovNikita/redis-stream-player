@@ -65,17 +65,17 @@ class TestRedisOverrides:
 
     def test_local_redis(self):
         cfg = _compose("record", overrides=["redis=local"])
-        assert cfg.redis.redis.host == "localhost"
-        assert cfg.redis.redis.port == 6379
+        assert cfg.redis.host == "localhost"
+        assert cfg.redis.port == 6379
 
     def test_prod_redis(self):
         cfg = _compose("record", overrides=["redis=prod"])
-        assert cfg.redis.redis.host == "prod-redis"
-        assert cfg.redis.redis.port == 6379
+        assert cfg.redis.host == "prod-redis"
+        assert cfg.redis.port == 6379
 
     def test_play_prod_redis(self):
         cfg = _compose("play", overrides=["redis=prod"])
-        assert cfg.redis.redis.host == "prod-redis"
+        assert cfg.redis.host == "prod-redis"
 
 
 class TestStreamOverrides:
