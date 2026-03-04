@@ -31,7 +31,7 @@ def _setup_logging(*, verbose: bool) -> None:
 
 
 @hydra.main(
-    config_path="../../../conf",
+    config_path="conf",
     config_name="record",
     version_base=None,
 )
@@ -47,7 +47,7 @@ def record_main(cfg: DictConfig) -> None:
 
 
 @hydra.main(
-    config_path="../../../conf",
+    config_path="conf",
     config_name="play",
     version_base=None,
 )
@@ -63,7 +63,7 @@ def play_main(cfg: DictConfig) -> None:
 
 
 @hydra.main(
-    config_path="../../../conf",
+    config_path="conf",
     config_name="convert",
     version_base=None,
 )
@@ -79,7 +79,7 @@ def convert_main(cfg: DictConfig) -> None:
 
 
 @hydra.main(
-    config_path="../../../conf",
+    config_path="conf",
     config_name="truncate",
     version_base=None,
 )
@@ -95,7 +95,7 @@ def truncate_main(cfg: DictConfig) -> None:
 
 
 @hydra.main(
-    config_path="../../../conf",
+    config_path="conf",
     config_name="info",
     version_base=None,
 )

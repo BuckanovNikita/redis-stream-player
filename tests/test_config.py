@@ -5,7 +5,9 @@ from pathlib import Path
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig, OmegaConf
 
-CONF_DIR = str(Path(__file__).resolve().parent.parent / "conf")
+CONF_DIR = str(
+    Path(__file__).resolve().parent.parent / "src" / "redis_stream_player" / "conf"
+)
 
 
 def _compose(config_name: str, overrides: list[str] | None = None) -> DictConfig:

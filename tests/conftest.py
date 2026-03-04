@@ -12,7 +12,9 @@ from redis_stream_player.models import (
     StreamRecord,
 )
 
-CONF_DIR = str(Path(__file__).resolve().parent.parent / "conf")
+CONF_DIR = str(
+    Path(__file__).resolve().parent.parent / "src" / "redis_stream_player" / "conf"
+)
 
 
 @pytest.fixture
