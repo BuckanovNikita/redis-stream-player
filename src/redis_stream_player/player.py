@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import queue
 import signal
 import threading
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from tqdm import tqdm
@@ -33,6 +35,15 @@ logger = logging.getLogger(__name__)
 _NS_PER_MS = 1_000_000
 
 
+@dataclass(frozen=True)
+class _PreparedRecord:
+    """A record with pre-computed XADD fields ready for replay."""
+
+    stream_name: str
+    message_id: MessageID
+    xadd_fields: dict[str, str | bytes]
+
+
 class Player:
     """Replays recorded Redis stream messages."""
 
@@ -52,11 +63,13 @@ class Player:
         self._client: redis_lib.Redis[bytes] | None = None
         self._progress: tqdm[Any] | None = None
         logger.debug(
-            "Player config: input=%s, speed=%s, max_delay=%s, batch_size=%s",
+            "Player config: input=%s, speed=%s, max_delay=%s,"
+            " batch_size=%s, prefetch=%s",
             conf.input,
             conf.speed,
             conf.max_delay,
             conf.batch_size,
+            conf.prefetch,
         )
 
     def _handle_signal(self, _signum: int, _frame: FrameType | None) -> None:
@@ -89,7 +102,10 @@ class Player:
 
         raw_val = fields[ts_field]
         try:
-            original_ts_ns = int(str(raw_val))
+            if isinstance(raw_val, (int, str)):
+                original_ts_ns = int(raw_val)
+            else:
+                original_ts_ns = int(str(raw_val))
         except (ValueError, TypeError):
             logger.warning(
                 "Non-numeric timestamp %r in stream %s",
@@ -102,9 +118,73 @@ class Player:
         now_ns = time.time_ns()
         adjusted_ts_ns = now_ns - original_offset
 
-        adjusted_fields = dict(fields)
-        adjusted_fields[ts_field] = str(adjusted_ts_ns)
-        return adjusted_fields
+        fields[ts_field] = str(adjusted_ts_ns)
+        return fields
+
+    def _prepare_fields(
+        self,
+        record: StreamRecord,
+    ) -> dict[str, str | bytes]:
+        """Prepare XADD fields from a record, applying timestamp adjustments."""
+        config = self._config_map.get(record.stream_name)
+        fields = dict(record.fields)
+        if config is not None:
+            fields = self._adjust_timestamp(config, fields, record.message_id)
+
+        xadd_fields: dict[str, str | bytes] = {}
+        for k, v in fields.items():
+            if isinstance(v, (str, bytes)):
+                xadd_fields[k if isinstance(k, str) else str(k)] = v
+            else:
+                xadd_fields[k if isinstance(k, str) else str(k)] = str(v)
+        return xadd_fields
+
+    def _producer_loop(
+        self,
+        q: queue.Queue[tuple[list[_PreparedRecord], int] | None],
+        reader: RecordReader,
+    ) -> None:
+        """Read records from file, prepare batches, and enqueue them."""
+        batch_size = self._conf.batch_size
+        try:
+            batch: list[StreamRecord] = []
+            prev_bytes = 0
+            for record in reader:
+                if self._stop_event.is_set():
+                    break
+                batch.append(record)
+
+                if len(batch) >= batch_size:
+                    batch.sort(key=lambda r: r.message_id)
+                    prepared = [
+                        _PreparedRecord(
+                            stream_name=r.stream_name,
+                            message_id=r.message_id,
+                            xadd_fields=self._prepare_fields(r),
+                        )
+                        for r in batch
+                    ]
+                    bytes_delta = reader.bytes_read - prev_bytes
+                    prev_bytes = reader.bytes_read
+                    q.put((prepared, bytes_delta))
+                    batch = []
+
+            if batch and not self._stop_event.is_set():
+                batch.sort(key=lambda r: r.message_id)
+                prepared = [
+                    _PreparedRecord(
+                        stream_name=r.stream_name,
+                        message_id=r.message_id,
+                        xadd_fields=self._prepare_fields(r),
+                    )
+                    for r in batch
+                ]
+                bytes_delta = reader.bytes_read - prev_bytes
+                q.put((prepared, bytes_delta))
+        except Exception:
+            logger.exception("Producer thread error")
+        finally:
+            q.put(None)
 
     def run(self) -> None:
         """Run the player, replaying all records from the file."""
@@ -129,8 +209,6 @@ class Player:
             ", ".join(sc.key for sc in self._stream_configs),
         )
 
-        batch_size = self._conf.batch_size
-
         try:
             file_size = reader.file_size
         except OSError:
@@ -144,38 +222,41 @@ class Player:
             disable=not self._conf.verbose,
         )
 
+        q: queue.Queue[tuple[list[_PreparedRecord], int] | None] = queue.Queue(
+            maxsize=self._conf.prefetch,
+        )
+        producer = threading.Thread(
+            target=self._producer_loop,
+            args=(q, reader),
+            daemon=True,
+        )
+        producer.start()
+
         prev_msg_id: MessageID | None = None
         prev_mono: float | None = None
         replayed = 0
 
         try:
-            batch: list[StreamRecord] = []
-            for record in reader:
-                if not self._running:
+            while self._running:
+                try:
+                    item = q.get(timeout=0.5)
+                except queue.Empty:
+                    continue
+
+                if item is None:
                     break
-                batch.append(record)
 
-                if len(batch) >= batch_size:
-                    self._replay_batch(
-                        batch,
-                        prev_msg_id,
-                        prev_mono,
-                    )
-                    if batch:
-                        prev_msg_id = batch[-1].message_id
-                        prev_mono = time.monotonic()
-                    replayed += len(batch)
-                    batch = []
-
-            if batch and self._running:
-                self._replay_batch(
-                    batch,
-                    prev_msg_id,
-                    prev_mono,
-                )
+                batch, bytes_delta = item
+                self._replay_batch(batch, prev_msg_id, prev_mono)
+                if batch:
+                    prev_msg_id = batch[-1].message_id
+                    prev_mono = time.monotonic()
                 replayed += len(batch)
+                self._progress.update(bytes_delta)
 
         finally:
+            self._stop_event.set()
+            producer.join(timeout=5.0)
             self._progress.close()
             self._progress = None
             signal.signal(signal.SIGINT, original_sigint)
@@ -184,53 +265,35 @@ class Player:
 
         logger.info("Playback complete: %d messages replayed", replayed)
 
-    def _prepare_fields(
-        self,
-        record: StreamRecord,
-    ) -> dict[str, str | bytes]:
-        """Prepare XADD fields from a record, applying timestamp adjustments."""
-        config = self._config_map.get(record.stream_name)
-        fields = record.fields
-        if config is not None:
-            fields = self._adjust_timestamp(config, fields, record.message_id)
-
-        xadd_fields: dict[str, str | bytes] = {}
-        for k, v in fields.items():
-            xadd_fields[str(k)] = str(v) if not isinstance(v, bytes) else v
-        return xadd_fields
-
     def _flush_pipeline(
         self,
         pipe: redis_lib.client.Pipeline[bytes],
-        pipe_meta: list[tuple[str, list[str]]],
+        pipe_meta: list[tuple[str, dict[str, str | bytes]]],
     ) -> None:
         """Execute a pipeline and log any per-command failures."""
         results = pipe.execute(raise_on_error=False)
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                stream_name, field_keys = pipe_meta[i]
+                stream_name, xadd_fields = pipe_meta[i]
                 logger.error(
                     "Failed to XADD to %s (fields: %s): %s",
                     stream_name,
-                    field_keys,
+                    list(xadd_fields.keys()),
                     result,
                 )
 
     def _replay_batch(
         self,
-        batch: list[StreamRecord],
+        batch: list[_PreparedRecord],
         prev_msg_id: MessageID | None,
         prev_mono: float | None,
     ) -> None:
-        """Sort batch by MessageID and replay with timing."""
+        """Replay a batch of prepared records with timing."""
         assert self._client is not None  # noqa: S101
         client = self._client
-        assert self._progress is not None  # noqa: S101
-        progress = self._progress
         speed = self._conf.speed
         max_delay = self._conf.max_delay
 
-        batch.sort(key=lambda r: r.message_id)
         logger.debug("Replaying batch of %d records", len(batch))
 
         local_prev_id = prev_msg_id
@@ -238,7 +301,7 @@ class Player:
 
         pipe = client.pipeline(transaction=False)
         pipe_count = 0
-        pipe_meta: list[tuple[str, list[str]]] = []
+        pipe_meta: list[tuple[str, dict[str, str | bytes]]] = []
 
         for record in batch:
             if not self._running:
@@ -258,7 +321,6 @@ class Player:
                         # Flush pending commands before sleeping
                         if pipe_count > 0:
                             self._flush_pipeline(pipe, pipe_meta)
-                            progress.update(pipe_count)
                             pipe = client.pipeline(transaction=False)
                             pipe_count = 0
                             pipe_meta = []
@@ -266,9 +328,8 @@ class Player:
                         if self._stop_event.wait(timeout=delay):
                             break
 
-            xadd_fields = self._prepare_fields(record)
-            pipe.xadd(record.stream_name, xadd_fields, id="*")
-            pipe_meta.append((record.stream_name, list(xadd_fields.keys())))
+            pipe.xadd(record.stream_name, record.xadd_fields, id="*")
+            pipe_meta.append((record.stream_name, record.xadd_fields))
             pipe_count += 1
 
             local_prev_id = record.message_id
@@ -277,4 +338,3 @@ class Player:
         # Flush remaining commands
         if pipe_count > 0:
             self._flush_pipeline(pipe, pipe_meta)
-            progress.update(pipe_count)

@@ -165,11 +165,17 @@ class RecordReader:
     def __init__(self, path: str | Path) -> None:
         """Initialize reader with the given file path."""
         self._path = Path(path)
+        self._bytes_read = 0
 
     @property
     def file_size(self) -> int:
         """Return the file size in bytes."""
         return self._path.stat().st_size
+
+    @property
+    def bytes_read(self) -> int:
+        """Return the number of bytes consumed so far."""
+        return self._bytes_read
 
     def __iter__(self) -> Iterator[StreamRecord]:
         """Iterate over all records in the file."""
@@ -192,6 +198,7 @@ class RecordReader:
             unpacker = msgpack.Unpacker(f, raw=False, max_buffer_size=0)
             try:
                 for obj in unpacker:
+                    self._bytes_read = unpacker.tell()
                     if not isinstance(obj, list) or len(obj) != 3:
                         logger.warning("Skipping malformed record: %r", obj)
                         continue

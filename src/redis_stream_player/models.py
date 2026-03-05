@@ -132,6 +132,7 @@ class PlayConf:
     speed: float = 1.0
     max_delay: float = 60.0
     batch_size: int = 1000
+    prefetch: int = 4
     verbose: bool = False
 
 
