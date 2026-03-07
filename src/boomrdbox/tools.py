@@ -33,11 +33,7 @@ class Converter:
             self._conf.output,
         )
         reader = RecordReader(self._conf.input)
-        fmt = self._conf.format.lower()
-
-        if fmt not in ("parquet", "csv"):
-            msg = f"Unsupported format: {fmt!r}, use 'parquet' or 'csv'"
-            raise ValueError(msg)
+        fmt = self._conf.format
 
         try:
             file_size = reader.file_size

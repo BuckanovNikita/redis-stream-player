@@ -15,6 +15,7 @@ from boomrdbox.models import (
     MessageID,
     RedisConf,
     StreamConfig,
+    StreamItemConf,
     StreamRecord,
     TimestampMode,
 )
@@ -44,12 +45,12 @@ def parse_stream_configs(raw_streams: list[Any]) -> list[StreamConfig]:
     for item in raw_streams:
         if isinstance(item, str):
             configs.append(StreamConfig(key=item))
-        elif hasattr(item, "key"):  # Hydra DictConfig: attribute-style access
-            mode = TimestampMode(getattr(item, "timestamp_mode", "bypass") or "bypass")
+        elif isinstance(item, StreamItemConf):
+            mode = TimestampMode(item.timestamp_mode or "bypass")
             configs.append(
                 StreamConfig(
                     key=item.key,
-                    timestamp_field=getattr(item, "timestamp_field", None),
+                    timestamp_field=item.timestamp_field,
                     timestamp_mode=mode,
                 )
             )

@@ -48,10 +48,6 @@ class Player:
 
     def __init__(self, conf: PlayConf) -> None:
         """Initialize with player configuration."""
-        if conf.speed <= 0:
-            msg = f"speed must be positive, got {conf.speed}"
-            raise ValueError(msg)
-
         self._conf = conf
         self._stream_configs = parse_stream_configs(list(conf.streams.streams))
         self._config_map: dict[str, StreamConfig] = {

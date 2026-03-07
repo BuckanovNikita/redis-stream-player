@@ -1,6 +1,7 @@
 """Tests for tools (Converter, Truncator, Info)."""
 
 import pytest
+from pydantic import ValidationError
 
 from boomrdbox.io import RecordReader
 from boomrdbox.models import (
@@ -46,13 +47,12 @@ class TestConverter:
         assert not output.exists()
 
     def test_invalid_format(self, sample_msgpack, tmp_path):
-        conf = ConvertConf(
-            input=str(sample_msgpack),
-            output=str(tmp_path / "out.json"),
-            format="json",
-        )
-        with pytest.raises(ValueError, match="Unsupported format"):
-            Converter(conf).run()
+        with pytest.raises(ValidationError):
+            ConvertConf(
+                input=str(sample_msgpack),
+                output=str(tmp_path / "out.json"),
+                format="json",
+            )
 
 
 class TestTruncator:

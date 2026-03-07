@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from boomrdbox.io import RecordWriter
 from boomrdbox.models import (
@@ -49,11 +50,11 @@ def _make_play_conf(input_path: str, **overrides: Any) -> PlayConf:
 class TestPlayer:
     def test_invalid_speed(self, tmp_path: Path) -> None:
         path = str(tmp_path / "x.msgpack")
-        with pytest.raises(ValueError, match="speed must be positive"):
-            Player(_make_play_conf(path, speed=0))
+        with pytest.raises(ValidationError):
+            _make_play_conf(path, speed=0)
 
-        with pytest.raises(ValueError, match="speed must be positive"):
-            Player(_make_play_conf(path, speed=-1.0))
+        with pytest.raises(ValidationError):
+            _make_play_conf(path, speed=-1.0)
 
     @patch("boomrdbox.player.create_redis")
     def test_play_empty_file(self, mock_create_redis: Any, tmp_path: Path) -> None:

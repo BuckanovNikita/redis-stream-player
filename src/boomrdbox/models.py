@@ -7,7 +7,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Annotated, Any
+
+from pydantic import Field, field_validator
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 
 class TimestampMode(Enum):
@@ -81,17 +84,21 @@ class StreamRecord:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@pydantic_dataclass
 class RedisConf:
     """Redis connection configuration."""
 
     host: str = "localhost"
-    port: int = 6379
-    db: int = 0
+    port: Annotated[int, Field(ge=1, le=65535)] = 6379
+    db: Annotated[int, Field(ge=0)] = 0
     password: str | None = None
 
 
-@dataclass
+_VALID_TIMESTAMP_MODES = frozenset({"bypass", "shift"})
+_VALID_CONVERT_FORMATS = frozenset({"parquet", "csv"})
+
+
+@pydantic_dataclass
 class StreamItemConf:
     """Single stream item in Hydra config."""
 
@@ -99,15 +106,24 @@ class StreamItemConf:
     timestamp_field: str | None = None
     timestamp_mode: str = "bypass"
 
+    @field_validator("timestamp_mode")
+    @classmethod
+    def _check_timestamp_mode(cls, v: str) -> str:
+        if v not in _VALID_TIMESTAMP_MODES:
+            allowed = sorted(_VALID_TIMESTAMP_MODES)
+            msg = f"timestamp_mode must be one of {allowed}, got {v!r}"
+            raise ValueError(msg)
+        return v
 
-@dataclass
+
+@pydantic_dataclass
 class StreamsConf:
     """Streams list configuration."""
 
     streams: list[Any] = field(default_factory=list)
 
 
-@dataclass
+@pydantic_dataclass
 class RecordConf:
     """Recorder Hydra configuration."""
 
@@ -116,27 +132,27 @@ class RecordConf:
     output: str = "recording.msgpack"
     from_beginning: bool = False
     rotate_key: str | None = None
-    batch_size: int = 100
-    max_duration: float | None = None
-    max_size_mb: float | None = None
+    batch_size: Annotated[int, Field(gt=0)] = 100
+    max_duration: Annotated[float | None, Field(gt=0)] = None
+    max_size_mb: Annotated[float | None, Field(gt=0)] = None
     verbose: bool = False
 
 
-@dataclass
+@pydantic_dataclass
 class PlayConf:
     """Player Hydra configuration."""
 
     redis: RedisConf = field(default_factory=RedisConf)
     streams: StreamsConf = field(default_factory=StreamsConf)
     input: str = "recording.msgpack"
-    speed: float = 1.0
-    max_delay: float = 60.0
-    batch_size: int = 1000
-    prefetch: int = 4
+    speed: Annotated[float, Field(gt=0)] = 1.0
+    max_delay: Annotated[float, Field(gt=0)] = 60.0
+    batch_size: Annotated[int, Field(gt=0)] = 1000
+    prefetch: Annotated[int, Field(gt=0)] = 4
     verbose: bool = False
 
 
-@dataclass
+@pydantic_dataclass
 class ConvertConf:
     """Converter Hydra configuration."""
 
@@ -145,8 +161,16 @@ class ConvertConf:
     format: str = "parquet"
     verbose: bool = False
 
+    @field_validator("format")
+    @classmethod
+    def _check_format(cls, v: str) -> str:
+        if v not in _VALID_CONVERT_FORMATS:
+            msg = f"format must be one of {sorted(_VALID_CONVERT_FORMATS)}, got {v!r}"
+            raise ValueError(msg)
+        return v
 
-@dataclass
+
+@pydantic_dataclass
 class TruncateConf:
     """Truncator Hydra configuration."""
 
@@ -158,7 +182,7 @@ class TruncateConf:
     verbose: bool = False
 
 
-@dataclass
+@pydantic_dataclass
 class InfoConf:
     """Info tool Hydra configuration."""
 

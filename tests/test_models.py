@@ -1,11 +1,16 @@
 """Tests for domain models."""
 
 import pytest
+from pydantic import ValidationError
 
 from boomrdbox.models import (
+    ConvertConf,
     InvalidMessageIDError,
     MessageID,
+    RecordConf,
+    RedisConf,
     StreamConfig,
+    StreamItemConf,
     StreamRecord,
     TimestampMode,
 )
@@ -94,3 +99,31 @@ class TestTimestampMode:
     def test_from_string(self):
         assert TimestampMode("bypass") == TimestampMode.BYPASS
         assert TimestampMode("shift") == TimestampMode.SHIFT
+
+
+class TestConfigValidation:
+    def test_redis_port_too_low(self):
+        with pytest.raises(ValidationError):
+            RedisConf(port=0)
+
+    def test_redis_port_too_high(self):
+        with pytest.raises(ValidationError):
+            RedisConf(port=70000)
+
+    def test_record_batch_size_zero(self):
+        with pytest.raises(ValidationError):
+            RecordConf(batch_size=0)
+
+    def test_stream_item_invalid_mode(self):
+        with pytest.raises(ValidationError):
+            StreamItemConf(timestamp_mode="invalid")
+
+    def test_convert_invalid_format(self):
+        with pytest.raises(ValidationError):
+            ConvertConf(format="json")
+
+    def test_valid_defaults(self):
+        RedisConf()
+        RecordConf()
+        StreamItemConf()
+        ConvertConf()
