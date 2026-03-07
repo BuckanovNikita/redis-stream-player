@@ -34,6 +34,21 @@ if TYPE_CHECKING:
 _NS_PER_MS = 1_000_000
 
 
+def _format_ms(ms: int) -> str:
+    total_seconds = ms // 1000
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+@dataclass(frozen=True)
+class _BatchMeta:
+    """Metadata about stream time boundaries for progress tracking."""
+
+    first_ms: int
+    last_ms: int
+
+
 @dataclass(frozen=True)
 class _PreparedRecord:
     """A record with pre-computed XADD fields ready for replay."""
@@ -136,14 +151,15 @@ class Player:
 
     def _producer_loop(
         self,
-        q: queue.Queue[tuple[list[_PreparedRecord], int] | None],
+        q: queue.Queue[tuple[list[_PreparedRecord], _BatchMeta] | None],
         reader: RecordReader,
     ) -> None:
         """Read records from file, prepare batches, and enqueue them."""
         batch_size = self._conf.batch_size
         try:
             batch: list[StreamRecord] = []
-            prev_bytes = 0
+            first_ms: int | None = None
+            last_ms = 0
             for record in reader:
                 if self._stop_event.is_set():
                     break
@@ -159,9 +175,10 @@ class Player:
                         )
                         for r in batch
                     ]
-                    bytes_delta = reader.bytes_read - prev_bytes
-                    prev_bytes = reader.bytes_read
-                    q.put((prepared, bytes_delta))
+                    if first_ms is None:
+                        first_ms = batch[0].message_id.ms
+                    last_ms = max(last_ms, batch[-1].message_id.ms)
+                    q.put((prepared, _BatchMeta(first_ms=first_ms, last_ms=last_ms)))
                     batch = []
 
             if batch and not self._stop_event.is_set():
@@ -174,8 +191,10 @@ class Player:
                     )
                     for r in batch
                 ]
-                bytes_delta = reader.bytes_read - prev_bytes
-                q.put((prepared, bytes_delta))
+                if first_ms is None:
+                    first_ms = batch[0].message_id.ms
+                last_ms = max(last_ms, batch[-1].message_id.ms)
+                q.put((prepared, _BatchMeta(first_ms=first_ms, last_ms=last_ms)))
         except (msgpack.UnpackValueError, OSError, KeyError, TypeError):
             logger.exception("Producer thread error")
         finally:
@@ -204,20 +223,15 @@ class Player:
             ", ".join(sc.key for sc in self._stream_configs),
         )
 
-        try:
-            file_size = reader.file_size
-        except OSError:
-            file_size = 0
-
         self._progress = tqdm(
-            total=file_size if file_size > 0 else None,
+            total=0,
             desc="Playing",
-            unit="B",
-            unit_scale=True,
+            bar_format="{desc}: {postfix} [{bar:30}] {percentage:3.0f}%",
             disable=not self._conf.verbose,
         )
+        self._progress.set_postfix_str("00:00:00 / --:--:--")
 
-        q: queue.Queue[tuple[list[_PreparedRecord], int] | None] = queue.Queue(
+        q: queue.Queue[tuple[list[_PreparedRecord], _BatchMeta] | None] = queue.Queue(
             maxsize=self._conf.prefetch,
         )
         producer = threading.Thread(
@@ -241,13 +255,21 @@ class Player:
                 if item is None:
                     break
 
-                batch, bytes_delta = item
+                batch, meta = item
                 self._replay_batch(batch, prev_msg_id, prev_mono)
                 if batch:
                     prev_msg_id = batch[-1].message_id
                     prev_mono = time.monotonic()
                 replayed += len(batch)
-                self._progress.update(bytes_delta)
+
+                elapsed_ms = batch[-1].message_id.ms - meta.first_ms if batch else 0
+                total_ms = meta.last_ms - meta.first_ms
+                self._progress.n = elapsed_ms
+                self._progress.total = max(total_ms, 1)
+                self._progress.set_postfix_str(
+                    f"{_format_ms(elapsed_ms)} / {_format_ms(total_ms)}"
+                )
+                self._progress.refresh()
 
         finally:
             self._stop_event.set()

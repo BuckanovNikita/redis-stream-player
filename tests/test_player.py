@@ -15,7 +15,7 @@ from boomrdbox.models import (
     StreamRecord,
     StreamsConf,
 )
-from boomrdbox.player import Player
+from boomrdbox.player import Player, _format_ms
 
 _DEFAULT_PLAY_STREAMS: list[Any] = [
     {
@@ -45,6 +45,21 @@ def _make_play_conf(input_path: str, **overrides: Any) -> PlayConf:
     }
     defaults.update(overrides)
     return PlayConf(**defaults)
+
+
+@pytest.mark.parametrize(
+    ("ms", "expected"),
+    [
+        (0, "00:00:00"),
+        (5_000, "00:00:05"),
+        (61_000, "00:01:01"),
+        (3_661_000, "01:01:01"),
+        (86_400_000, "24:00:00"),
+        (90_061_000, "25:01:01"),
+    ],
+)
+def test_format_ms(ms: int, expected: str) -> None:
+    assert _format_ms(ms) == expected
 
 
 class TestPlayer:
