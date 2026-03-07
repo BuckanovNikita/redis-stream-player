@@ -11,12 +11,12 @@ import redis as redis_lib
 from loguru import logger
 from tqdm import tqdm
 
-from redis_stream_player.io import (
+from boomrdbox.io import (
     RecordWriter,
     create_redis,
     parse_stream_configs,
 )
-from redis_stream_player.models import MessageID, RecordConf, StreamRecord
+from boomrdbox.models import MessageID, RecordConf, StreamRecord
 
 if TYPE_CHECKING:
     from types import FrameType

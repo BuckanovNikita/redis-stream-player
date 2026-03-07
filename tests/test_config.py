@@ -1,17 +1,14 @@
-"""Tests for Hydra config composition from real YAML files."""
+"""Tests for Hydra config composition from programmatic store."""
 
-from pathlib import Path
-
-from hydra import compose, initialize_config_dir
+from hydra import compose, initialize
 from omegaconf import DictConfig, OmegaConf
 
-CONF_DIR = str(
-    Path(__file__).resolve().parent.parent / "src" / "redis_stream_player" / "conf"
-)
+from boomrdbox._config import store
 
 
 def _compose(config_name: str, overrides: list[str] | None = None) -> DictConfig:
-    with initialize_config_dir(config_dir=CONF_DIR, version_base=None):
+    store.add_to_hydra_store(overwrite_ok=True)
+    with initialize(config_path=None, version_base=None):
         return compose(config_name=config_name, overrides=overrides or [])
 
 
@@ -51,8 +48,8 @@ class TestConfigComposition:
         assert "input" in cfg
         assert "verbose" in cfg
 
-    def test_record_resolves_env_vars(self):
-        """Env-var interpolation resolves to null by default."""
+    def test_record_defaults(self):
+        """Default values resolve correctly."""
         cfg = _compose("record")
         resolved = OmegaConf.to_container(cfg, resolve=True)
         assert isinstance(resolved, dict)
@@ -85,7 +82,7 @@ class TestStreamOverrides:
         cfg = _compose("record", overrides=["streams=sensors"])
         streams = cfg.streams.streams
         assert len(streams) == 3
-        keys = [s["key"] for s in streams]
+        keys = [s.key for s in streams]
         assert "sensor:imu" in keys
         assert "sensor:gps" in keys
         assert "sensor:camera" in keys
@@ -94,7 +91,7 @@ class TestStreamOverrides:
         cfg = _compose("record", overrides=["streams=events"])
         streams = cfg.streams.streams
         assert len(streams) == 3
-        keys = [s["key"] for s in streams]
+        keys = [s.key for s in streams]
         assert "events:user" in keys
         assert "events:system" in keys
         assert "events:audit" in keys
@@ -102,12 +99,12 @@ class TestStreamOverrides:
     def test_sensors_timestamp_config(self):
         cfg = _compose("play", overrides=["streams=sensors"])
         streams = cfg.streams.streams
-        imu = next(s for s in streams if s["key"] == "sensor:imu")
-        assert imu["timestamp_field"] == "receive_ts"
-        assert imu["timestamp_mode"] == "bypass"
-        camera = next(s for s in streams if s["key"] == "sensor:camera")
-        assert camera["timestamp_field"] == "ts_nano"
-        assert camera["timestamp_mode"] == "shift"
+        imu = next(s for s in streams if s.key == "sensor:imu")
+        assert imu.timestamp_field == "receive_ts"
+        assert imu.timestamp_mode == "bypass"
+        camera = next(s for s in streams if s.key == "sensor:camera")
+        assert camera.timestamp_field == "ts_nano"
+        assert camera.timestamp_mode == "shift"
 
 
 class TestScalarOverrides:

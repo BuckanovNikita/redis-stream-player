@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`redis-stream-player` is a Python project for replaying Redis stream data. Primary language is Python with strict typing.
+`boomrdbox` is a Python project for replaying Redis stream data. Primary language is Python with strict typing.
 
 ## Development Commands
 
@@ -30,7 +30,7 @@ uv run pre-commit run --all-files   # run before committing
 
 - When asked to create a plan, stay in plan mode and do NOT start implementing code unless explicitly asked to implement. Planning and implementation are separate phases.
 - After any refactoring or code edit, run the full test suite (`pytest`) and all linters (`ruff check .`, `mypy .`) before reporting completion. Do not consider a task done until all checks pass.
-- This project uses Python with strict typing (mypy strict mode), ruff for linting, and pytest for testing. YAML configs and Markdown docs are also common.
+- This project uses Python with strict typing (mypy strict mode), ruff for linting, and pytest for testing.
 
 ## Git / Commit Conventions
 

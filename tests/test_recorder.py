@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from redis_stream_player.io import RecordReader
-from redis_stream_player.models import RecordConf, RedisConf, StreamsConf
-from redis_stream_player.recorder import Recorder
+from boomrdbox.io import RecordReader
+from boomrdbox.models import RecordConf, RedisConf, StreamsConf
+from boomrdbox.recorder import Recorder
 
 
 def _make_record_conf(tmp_path: Path, **overrides: Any) -> RecordConf:
@@ -27,7 +27,7 @@ def _make_record_conf(tmp_path: Path, **overrides: Any) -> RecordConf:
 
 
 class TestRecorder:
-    @patch("redis_stream_player.recorder.create_redis")
+    @patch("boomrdbox.recorder.create_redis")
     def test_basic_recording(self, mock_create_redis, tmp_path):
         mock_client = MagicMock()
         mock_create_redis.return_value = mock_client
@@ -62,7 +62,7 @@ class TestRecorder:
         assert records[0].stream_name == "test:stream"
         assert records[0].fields == {"key": "value1"}
 
-    @patch("redis_stream_player.recorder.create_redis")
+    @patch("boomrdbox.recorder.create_redis")
     def test_from_beginning(self, mock_create_redis, tmp_path):
         mock_client = MagicMock()
         mock_create_redis.return_value = mock_client
@@ -83,7 +83,7 @@ class TestRecorder:
         recorder = Recorder(conf)
         recorder.run()
 
-    @patch("redis_stream_player.recorder.create_redis")
+    @patch("boomrdbox.recorder.create_redis")
     def test_max_duration(self, mock_create_redis, tmp_path):
         mock_client = MagicMock()
         mock_create_redis.return_value = mock_client
@@ -93,7 +93,7 @@ class TestRecorder:
         recorder = Recorder(conf)
         recorder.run()
 
-    @patch("redis_stream_player.recorder.create_redis")
+    @patch("boomrdbox.recorder.create_redis")
     def test_no_streams(self, mock_create_redis, tmp_path):
         mock_client = MagicMock()
         mock_create_redis.return_value = mock_client

@@ -1,4 +1,4 @@
-# redis-stream-player
+# boomrdbox
 
 Record and replay Redis stream data. Capture live stream messages to a compact msgpack file, then play them back with accurate timing, speed control, and timestamp adjustment.
 
@@ -13,13 +13,13 @@ Record and replay Redis stream data. Capture live stream messages to a compact m
 ## Installation
 
 ```bash
-pip install redis-stream-player
+pip install boomrdbox
 ```
 
 Or with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv pip install redis-stream-player
+uv pip install boomrdbox
 ```
 
 ## Quick start
@@ -29,19 +29,19 @@ uv pip install redis-stream-player
 Capture messages from configured streams:
 
 ```bash
-redis-stream-record output=recording.msgpack
+boomrdbox record output=recording.msgpack
 ```
 
 Record from the beginning of each stream:
 
 ```bash
-redis-stream-record output=recording.msgpack from_beginning=true
+boomrdbox record output=recording.msgpack from_beginning=true
 ```
 
 Set recording limits:
 
 ```bash
-redis-stream-record max_duration=60 max_size_mb=100
+boomrdbox record max_duration=60 max_size_mb=100
 ```
 
 ### Play
@@ -49,13 +49,13 @@ redis-stream-record max_duration=60 max_size_mb=100
 Replay a recording at original speed:
 
 ```bash
-redis-stream-play input=recording.msgpack
+boomrdbox play input=recording.msgpack
 ```
 
 Replay at 2x speed with a 10-second max inter-message delay:
 
 ```bash
-redis-stream-play input=recording.msgpack speed=2.0 max_delay=10
+boomrdbox play input=recording.msgpack speed=2.0 max_delay=10
 ```
 
 ### Convert
@@ -63,8 +63,8 @@ redis-stream-play input=recording.msgpack speed=2.0 max_delay=10
 Export to Parquet or CSV:
 
 ```bash
-redis-stream-convert input=recording.msgpack output=data.parquet format=parquet
-redis-stream-convert input=recording.msgpack output=data.csv format=csv
+boomrdbox convert input=recording.msgpack output=data.parquet format=parquet
+boomrdbox convert input=recording.msgpack output=data.csv format=csv
 ```
 
 ### Truncate
@@ -72,14 +72,14 @@ redis-stream-convert input=recording.msgpack output=data.csv format=csv
 Slice a recording by message ID range:
 
 ```bash
-redis-stream-truncate input=recording.msgpack output=slice.msgpack \
+boomrdbox truncate input=recording.msgpack output=slice.msgpack \
     from_id=1709312000000-0 to_id=1709312010000-0
 ```
 
 Auto-detect the start point where all streams are active:
 
 ```bash
-redis-stream-truncate input=recording.msgpack output=trimmed.msgpack auto_start=true
+boomrdbox truncate input=recording.msgpack output=trimmed.msgpack auto_start=true
 ```
 
 ### Info
@@ -87,29 +87,20 @@ redis-stream-truncate input=recording.msgpack output=trimmed.msgpack auto_start=
 Show recording statistics:
 
 ```bash
-redis-stream-info input=recording.msgpack
+boomrdbox info input=recording.msgpack
 ```
 
 ## Configuration
 
-This project uses [Hydra](https://hydra.cc/) for configuration. Default configs live in `src/redis_stream_player/conf/`.
+This project uses [Hydra](https://hydra.cc/) with [hydra-zen](https://mit-ll-responsible-ai.github.io/hydra-zen/) for programmatic configuration.
 
 ### Redis connection
 
 Override the Redis connection via config groups or CLI:
 
 ```bash
-redis-stream-record redis=prod                # use conf/redis/prod.yaml
-redis-stream-record redis.host=10.0.0.5 redis.port=6380
-```
-
-Default Redis config (`conf/redis/local.yaml`):
-
-```yaml
-host: localhost
-port: 6379
-db: 0
-password: null
+boomrdbox record redis=prod                # use prod Redis preset
+boomrdbox record redis.host=10.0.0.5 redis.port=6380
 ```
 
 ### Streams
@@ -117,8 +108,8 @@ password: null
 Switch stream groups or define streams inline:
 
 ```bash
-redis-stream-record streams=events            # use conf/streams/events.yaml
-redis-stream-record 'streams.streams=[{key: mystream}]'
+boomrdbox record streams=events            # use events stream preset
+boomrdbox record 'streams.streams=[{key: mystream}]'
 ```
 
 Streams support optional timestamp adjustment during playback:
@@ -144,15 +135,15 @@ docker compose up -d    # starts Redis on port 6389 + RedisInsight on port 5540
 Connect the tools to the dev Redis:
 
 ```bash
-redis-stream-record redis.port=6389
+boomrdbox record redis.port=6389
 ```
 
 ## Development
 
 ```bash
 # Clone and install
-git clone git@github.com:<org>/redis-stream-player.git
-cd redis-stream-player
+git clone git@github.com:<org>/boomrdbox.git
+cd boomrdbox
 uv sync --dev
 
 # Run checks

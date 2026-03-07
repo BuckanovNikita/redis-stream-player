@@ -11,7 +11,7 @@ import msgpack
 import redis
 from loguru import logger
 
-from redis_stream_player.models import (
+from boomrdbox.models import (
     MessageID,
     RedisConf,
     StreamConfig,

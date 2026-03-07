@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from redis_stream_player.io import RecordReader, RecordWriter, parse_stream_configs
-from redis_stream_player.models import (
+from boomrdbox.io import RecordReader, RecordWriter, parse_stream_configs
+from boomrdbox.models import (
     MessageID,
     StreamConfig,
     StreamRecord,

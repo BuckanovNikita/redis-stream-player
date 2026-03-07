@@ -1,4 +1,4 @@
-"""Domain models for redis-stream-player.
+"""Domain models for boomrdbox.
 
 This module contains pure domain types with no third-party dependencies.
 """

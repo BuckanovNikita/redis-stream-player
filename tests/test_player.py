@@ -6,15 +6,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from redis_stream_player.io import RecordWriter
-from redis_stream_player.models import (
+from boomrdbox.io import RecordWriter
+from boomrdbox.models import (
     MessageID,
     PlayConf,
     RedisConf,
     StreamRecord,
     StreamsConf,
 )
-from redis_stream_player.player import Player
+from boomrdbox.player import Player
 
 _DEFAULT_PLAY_STREAMS: list[Any] = [
     {
@@ -55,7 +55,7 @@ class TestPlayer:
         with pytest.raises(ValueError, match="speed must be positive"):
             Player(_make_play_conf(path, speed=-1.0))
 
-    @patch("redis_stream_player.player.create_redis")
+    @patch("boomrdbox.player.create_redis")
     def test_play_empty_file(self, mock_create_redis: Any, tmp_path: Path) -> None:
         mock_client = MagicMock()
         mock_pipe = MagicMock()
@@ -71,7 +71,7 @@ class TestPlayer:
         player.run()
         mock_pipe.xadd.assert_not_called()
 
-    @patch("redis_stream_player.player.create_redis")
+    @patch("boomrdbox.player.create_redis")
     def test_play_records(self, mock_create_redis: Any, sample_msgpack: Path) -> None:
         mock_client = MagicMock()
         mock_pipe = MagicMock()
@@ -85,7 +85,7 @@ class TestPlayer:
 
         assert mock_pipe.xadd.call_count == 5
 
-    @patch("redis_stream_player.player.create_redis")
+    @patch("boomrdbox.player.create_redis")
     def test_play_sorts_by_message_id(
         self, mock_create_redis: Any, tmp_path: Path
     ) -> None:
@@ -116,8 +116,8 @@ class TestPlayer:
         assert calls[1].args[0] == "b"  # ms=200
         assert calls[2].args[0] == "a"  # ms=300
 
-    @patch("redis_stream_player.player.create_redis")
-    @patch("redis_stream_player.player.time")
+    @patch("boomrdbox.player.create_redis")
+    @patch("boomrdbox.player.time")
     def test_timestamp_shift(
         self, mock_time: Any, mock_create_redis: Any, tmp_path: Path
     ) -> None:
@@ -146,7 +146,7 @@ class TestPlayer:
         fields = call.args[1]
         assert "ts_nano" in fields
 
-    @patch("redis_stream_player.player.create_redis")
+    @patch("boomrdbox.player.create_redis")
     def test_producer_consumer_produces_correct_sequence(
         self, mock_create_redis: Any, tmp_path: Path
     ) -> None:
@@ -185,7 +185,7 @@ class TestPlayer:
         stream_names = [c.args[0] for c in calls]
         assert stream_names == ["s1", "s1", "s2", "s2", "s1"]
 
-    @patch("redis_stream_player.player.create_redis")
+    @patch("boomrdbox.player.create_redis")
     def test_multiple_batches_with_prefetch(
         self, mock_create_redis: Any, tmp_path: Path
     ) -> None:

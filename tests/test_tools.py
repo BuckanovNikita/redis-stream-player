@@ -2,14 +2,14 @@
 
 import pytest
 
-from redis_stream_player.io import RecordReader
-from redis_stream_player.models import (
+from boomrdbox.io import RecordReader
+from boomrdbox.models import (
     ConvertConf,
     InfoConf,
     MessageID,
     TruncateConf,
 )
-from redis_stream_player.tools import Converter, Info, Truncator
+from boomrdbox.tools import Converter, Info, Truncator
 
 
 class TestConverter:

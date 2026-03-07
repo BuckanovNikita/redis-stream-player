@@ -13,12 +13,12 @@ import msgpack
 from loguru import logger
 from tqdm import tqdm
 
-from redis_stream_player.io import (
+from boomrdbox.io import (
     RecordReader,
     create_redis,
     parse_stream_configs,
 )
-from redis_stream_player.models import (
+from boomrdbox.models import (
     MessageID,
     PlayConf,
     StreamConfig,

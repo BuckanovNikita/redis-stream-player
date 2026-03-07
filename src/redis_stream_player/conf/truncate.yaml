@@ -1,6 +1,0 @@
-input: recording.msgpack
-output: truncated.msgpack
-from_id: null
-to_id: null
-auto_start: false
-verbose: false

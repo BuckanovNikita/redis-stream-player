@@ -1,4 +1,0 @@
-streams:
-  - key: events:user
-  - key: events:system
-  - key: events:audit

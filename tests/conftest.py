@@ -3,18 +3,22 @@
 from pathlib import Path
 
 import pytest
-from hydra import compose, initialize_config_dir
+from hydra import compose, initialize
 from omegaconf import DictConfig
 
-from redis_stream_player.io import RecordWriter
-from redis_stream_player.models import (
+from boomrdbox._config import store
+from boomrdbox.io import RecordWriter
+from boomrdbox.models import (
     MessageID,
     StreamRecord,
 )
 
-CONF_DIR = str(
-    Path(__file__).resolve().parent.parent / "src" / "redis_stream_player" / "conf"
-)
+
+def _compose_config(config_name: str, overrides: list[str] | None = None) -> DictConfig:
+    """Compose a Hydra config from the programmatic store."""
+    store.add_to_hydra_store(overwrite_ok=True)
+    with initialize(config_path=None, version_base=None):
+        return compose(config_name=config_name, overrides=overrides or [])
 
 
 @pytest.fixture
@@ -77,12 +81,6 @@ def sample_msgpack(tmp_msgpack: Path, sample_records: list[StreamRecord]) -> Pat
         for record in sample_records:
             writer.write(record)
     return tmp_msgpack
-
-
-def _compose_config(config_name: str, overrides: list[str] | None = None) -> DictConfig:
-    """Compose a Hydra config from real YAML files."""
-    with initialize_config_dir(config_dir=CONF_DIR, version_base=None):
-        return compose(config_name=config_name, overrides=overrides or [])
 
 
 @pytest.fixture

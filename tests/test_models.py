@@ -2,7 +2,7 @@
 
 import pytest
 
-from redis_stream_player.models import (
+from boomrdbox.models import (
     InvalidMessageIDError,
     MessageID,
     StreamConfig,

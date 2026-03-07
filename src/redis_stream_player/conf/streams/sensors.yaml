@@ -1,8 +1,0 @@
-streams:
-  - key: sensor:imu
-    timestamp_field: receive_ts
-    timestamp_mode: bypass
-  - key: sensor:gps
-  - key: sensor:camera
-    timestamp_field: ts_nano
-    timestamp_mode: shift
