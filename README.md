@@ -1,154 +1,154 @@
 # boomrdbox
 
-Record and replay Redis stream data. Capture live stream messages to a compact msgpack file, then play them back with accurate timing, speed control, and timestamp adjustment.
+Запись и воспроизведение данных из Redis-стримов. Захватывайте сообщения из потоков в компактный msgpack-файл, а затем воспроизводите их с точным таймингом, регулировкой скорости и корректировкой временных меток.
 
-## Features
+## Возможности
 
-- **Record** — capture messages from multiple Redis streams into a single msgpack file
-- **Play** — replay recorded messages with original timing, adjustable speed, and pipelined writes
-- **Convert** — export recordings to Parquet or CSV for analysis
-- **Truncate** — slice recordings by message ID range
-- **Info** — display per-stream statistics from a recording file
+- **Record** — захват сообщений из нескольких Redis-стримов в один msgpack-файл
+- **Play** — воспроизведение записанных сообщений с оригинальным таймингом, регулируемой скоростью и пайплайнингом записи
+- **Convert** — экспорт записей в Parquet или CSV для анализа
+- **Truncate** — обрезка записей по диапазону ID сообщений
+- **Info** — отображение статистики по каждому стриму из файла записи
 
-## Installation
+## Установка
 
 ```bash
 pip install boomrdbox
 ```
 
-Or with [uv](https://docs.astral.sh/uv/):
+Или через [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv pip install boomrdbox
 ```
 
-## Quick start
+## Быстрый старт
 
-### Record
+### Запись (record)
 
-Capture messages from configured streams:
+Захват сообщений из настроенных стримов:
 
 ```bash
 boomrdbox record output=recording.msgpack
 ```
 
-Record from the beginning of each stream:
+Запись с начала каждого стрима:
 
 ```bash
 boomrdbox record output=recording.msgpack from_beginning=true
 ```
 
-Set recording limits:
+Ограничение записи по времени и размеру:
 
 ```bash
 boomrdbox record max_duration=60 max_size_mb=100
 ```
 
-### Play
+### Воспроизведение (play)
 
-Replay a recording at original speed:
+Воспроизведение записи с оригинальной скоростью:
 
 ```bash
 boomrdbox play input=recording.msgpack
 ```
 
-Replay at 2x speed with a 10-second max inter-message delay:
+Воспроизведение на скорости 2x с максимальной задержкой между сообщениями 10 секунд:
 
 ```bash
 boomrdbox play input=recording.msgpack speed=2.0 max_delay=10
 ```
 
-### Convert
+### Конвертация (convert)
 
-Export to Parquet or CSV:
+Экспорт в Parquet или CSV:
 
 ```bash
 boomrdbox convert input=recording.msgpack output=data.parquet format=parquet
 boomrdbox convert input=recording.msgpack output=data.csv format=csv
 ```
 
-### Truncate
+### Обрезка (truncate)
 
-Slice a recording by message ID range:
+Обрезка записи по диапазону ID сообщений:
 
 ```bash
 boomrdbox truncate input=recording.msgpack output=slice.msgpack \
     from_id=1709312000000-0 to_id=1709312010000-0
 ```
 
-Auto-detect the start point where all streams are active:
+Автоматическое определение точки начала, где все стримы активны:
 
 ```bash
 boomrdbox truncate input=recording.msgpack output=trimmed.msgpack auto_start=true
 ```
 
-### Info
+### Информация (info)
 
-Show recording statistics:
+Отображение статистики записи:
 
 ```bash
 boomrdbox info input=recording.msgpack
 ```
 
-## Configuration
+## Конфигурация
 
-This project uses [Hydra](https://hydra.cc/) with [hydra-zen](https://mit-ll-responsible-ai.github.io/hydra-zen/) for programmatic configuration.
+Проект использует [Hydra](https://hydra.cc/) с [hydra-zen](https://mit-ll-responsible-ai.github.io/hydra-zen/) для программной настройки конфигурации.
 
-### Redis connection
+### Подключение к Redis
 
-Override the Redis connection via config groups or CLI:
+Переопределение параметров подключения к Redis через конфиг-группы или CLI:
 
 ```bash
-boomrdbox record redis=prod                # use prod Redis preset
+boomrdbox record redis=prod                # использовать пресет prod
 boomrdbox record redis.host=10.0.0.5 redis.port=6380
 ```
 
-### Streams
+### Стримы
 
-Switch stream groups or define streams inline:
+Переключение групп стримов или определение стримов в командной строке:
 
 ```bash
-boomrdbox record streams=events            # use events stream preset
+boomrdbox record streams=events            # использовать пресет events
 boomrdbox record 'streams.streams=[{key: mystream}]'
 ```
 
-Streams support optional timestamp adjustment during playback:
+Стримы поддерживают корректировку временных меток при воспроизведении:
 
 ```yaml
 streams:
   - key: sensor:imu
     timestamp_field: receive_ts
-    timestamp_mode: bypass      # keep original (default)
+    timestamp_mode: bypass      # сохранить оригинальное значение (по умолчанию)
   - key: sensor:camera
     timestamp_field: ts_nano
-    timestamp_mode: shift       # adjust to current wall-clock time
+    timestamp_mode: shift       # сдвинуть к текущему wall-clock времени
 ```
 
-## Docker Compose dev setup
+## Docker Compose для разработки
 
-A `docker-compose.yaml` is included for local development:
+В комплекте идёт `docker-compose.yaml` для локальной разработки:
 
 ```bash
-docker compose up -d    # starts Redis on port 6389 + RedisInsight on port 5540
+docker compose up -d    # запускает Redis на порту 6389 и RedisInsight на порту 5540
 ```
 
-Connect the tools to the dev Redis:
+Подключение инструментов к dev-серверу Redis:
 
 ```bash
 boomrdbox record redis.port=6389
 ```
 
-## Development
+## Разработка
 
 ```bash
-# Clone and install
+# Клонирование и установка
 git clone git@github.com:<org>/boomrdbox.git
 cd boomrdbox
 uv sync --dev
 
-# Run checks
-uv run pytest                          # tests
-uv run ruff check .                    # lint
-uv run mypy .                          # type check
-uv run pre-commit run --all-files      # all hooks
+# Запуск проверок
+uv run pytest                          # тесты
+uv run ruff check .                    # линтер
+uv run mypy .                          # проверка типов
+uv run pre-commit run --all-files      # все хуки
 ```

@@ -36,3 +36,6 @@ uv run pre-commit run --all-files   # run before committing
 
 - Always run `pre-commit run --all-files` before committing. If pre-commit hooks fail due to unstaged changes, stash first with `git stash`, run hooks, then `git stash pop`. Use `--no-verify` only as last resort.
 - Use SSH (not HTTPS) for git push operations. Remote URL format: `git@github.com:<org>/<repo>.git`
+
+## Documentation guidelines
+1. All docs must be in russian.
