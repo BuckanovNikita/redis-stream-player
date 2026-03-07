@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 import signal
 import threading
 import time
 from typing import TYPE_CHECKING, Any
 
 import redis as redis_lib
+from loguru import logger
 from tqdm import tqdm
 
 from redis_stream_player.io import (
@@ -20,8 +20,6 @@ from redis_stream_player.models import MessageID, RecordConf, StreamRecord
 
 if TYPE_CHECKING:
     from types import FrameType
-
-logger = logging.getLogger(__name__)
 
 
 class Recorder:
@@ -211,7 +209,7 @@ class Recorder:
                     count=self._conf.batch_size,
                     block=1000,
                 )
-            except Exception:
+            except (redis_lib.exceptions.RedisError, OSError):
                 if not self._running:
                     break
                 logger.exception("XREAD error")

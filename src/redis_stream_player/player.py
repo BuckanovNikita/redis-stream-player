@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import queue
 import signal
 import threading
@@ -10,6 +9,8 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import msgpack
+from loguru import logger
 from tqdm import tqdm
 
 from redis_stream_player.io import (
@@ -29,8 +30,6 @@ if TYPE_CHECKING:
     from types import FrameType
 
     import redis as redis_lib
-
-logger = logging.getLogger(__name__)
 
 _NS_PER_MS = 1_000_000
 
@@ -181,7 +180,7 @@ class Player:
                 ]
                 bytes_delta = reader.bytes_read - prev_bytes
                 q.put((prepared, bytes_delta))
-        except Exception:
+        except (msgpack.UnpackValueError, OSError, KeyError, TypeError):
             logger.exception("Producer thread error")
         finally:
             q.put(None)

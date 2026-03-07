@@ -10,20 +10,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Install dependencies
-pip install -e ".[dev]"
+uv sync --dev
 
 # Run tests
-pytest                       # full suite
-pytest tests/test_foo.py     # single file
-pytest -k "test_name"        # single test by name
+uv run pytest                       # full suite
+uv run pytest tests/test_foo.py     # single file
+uv run pytest -k "test_name"        # single test by name
 
 # Linting and type checking
-ruff check .                 # linter
-ruff check . --fix           # auto-fix lint issues
-mypy .                       # strict type checking
+uv run ruff check .                 # linter
+uv run ruff check . --fix           # auto-fix lint issues
+uv run mypy .                       # strict type checking
 
 # Pre-commit hooks
-pre-commit run --all-files   # run before committing
+uv run pre-commit run --all-files   # run before committing
 ```
 
 ## Workflow Conventions

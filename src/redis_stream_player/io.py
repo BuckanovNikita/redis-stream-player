@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import msgpack
 import redis
+from loguru import logger
 
 from redis_stream_player.models import (
     MessageID,
@@ -21,8 +21,6 @@ from redis_stream_player.models import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-
-logger = logging.getLogger(__name__)
 
 
 def create_redis(conf: RedisConf) -> redis.Redis[bytes]:
@@ -46,7 +44,7 @@ def parse_stream_configs(raw_streams: list[Any]) -> list[StreamConfig]:
     for item in raw_streams:
         if isinstance(item, str):
             configs.append(StreamConfig(key=item))
-        elif hasattr(item, "key"):
+        elif hasattr(item, "key"):  # Hydra DictConfig: attribute-style access
             mode = TimestampMode(getattr(item, "timestamp_mode", "bypass") or "bypass")
             configs.append(
                 StreamConfig(

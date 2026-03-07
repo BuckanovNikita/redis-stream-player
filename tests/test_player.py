@@ -198,8 +198,7 @@ class TestPlayer:
 
         fpath = tmp_path / "multi_batch.msgpack"
         records = [
-            StreamRecord("s", MessageID(i * 100, 0), {"v": str(i)})
-            for i in range(10)
+            StreamRecord("s", MessageID(i * 100, 0), {"v": str(i)}) for i in range(10)
         ]
         with RecordWriter(fpath) as writer:
             for r in records:

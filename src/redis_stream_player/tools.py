@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import logging
 import sys
 from typing import Any
 
+from loguru import logger
 from tqdm import tqdm
 
 from redis_stream_player.io import RecordReader, RecordWriter
@@ -15,8 +15,6 @@ from redis_stream_player.models import (
     MessageID,
     TruncateConf,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class Converter:

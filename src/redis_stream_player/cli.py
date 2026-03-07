@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import sys
 from typing import TYPE_CHECKING, cast
 
@@ -10,6 +9,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 import hydra
+from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from redis_stream_player.models import (
@@ -20,8 +20,6 @@ from redis_stream_player.models import (
     TruncateConf,
 )
 
-logger = logging.getLogger(__name__)
-
 
 def _run_safe(func: Callable[[], None]) -> None:
     """Run a function with top-level error handling."""
@@ -30,19 +28,16 @@ def _run_safe(func: Callable[[], None]) -> None:
     except KeyboardInterrupt:
         logger.info("Interrupted")
         sys.exit(130)
-    except Exception:
+    except Exception:  # noqa: BLE001 — top-level safety net
         logger.exception("Fatal error")
         sys.exit(1)
 
 
 def _setup_logging(*, verbose: bool) -> None:
-    """Configure logging level based on verbosity."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-        stream=sys.stderr,
-    )
+    """Configure loguru level based on verbosity."""
+    logger.remove()
+    level = "DEBUG" if verbose else "INFO"
+    logger.add(sys.stderr, level=level)
 
 
 @hydra.main(
