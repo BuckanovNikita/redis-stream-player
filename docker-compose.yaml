@@ -10,4 +10,7 @@ services:
     depends_on:
       - redis
     volumes:
-      - ./redisinsight-provisioning:/data/
+      - redisinsight-data:/data
+
+volumes:
+  redisinsight-data:

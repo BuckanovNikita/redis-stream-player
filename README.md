@@ -147,6 +147,15 @@ docker compose up -d    # запускает Redis на порту 6389 и Redis
 boomrdbox record redis.port=6389
 ```
 
+## Интеграционное тестирование
+
+E2E-тест проверяет полный цикл: заполнение Redis данными → запись → обрезка → воспроизведение → верификация. Требуется Docker.
+
+```bash
+bash integration/integration_test.sh              # запуск с автоочисткой
+bash integration/integration_test.sh --keep-redis  # оставить Redis для инспекции
+```
+
 ## Разработка
 
 ```bash
