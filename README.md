@@ -103,6 +103,15 @@ boomrdbox record redis=prod                # использовать пресе
 boomrdbox record redis.host=10.0.0.5 redis.port=6380
 ```
 
+Также поддерживаются переменные окружения `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB` и `REDIS_PASSWORD`:
+
+```bash
+REDIS_HOST=10.0.0.5 REDIS_PORT=6380 boomrdbox record
+REDIS_PASSWORD=secret boomrdbox play input=recording.msgpack
+```
+
+Приоритет: CLI-переопределения > переменные окружения > значения по умолчанию из пресета.
+
 ### Стримы
 
 Переключение групп стримов или определение стримов в командной строке:

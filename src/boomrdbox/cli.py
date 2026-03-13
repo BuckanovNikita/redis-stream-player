@@ -41,56 +41,56 @@ def _setup_logging(*, verbose: bool) -> None:
     logger.add(sys.stderr, level=level)
 
 
-def _record_task(cfg: DictConfig) -> None:
+def _record_task(zen_cfg: DictConfig) -> None:
     """Record Redis stream messages to a msgpack file."""
     from boomrdbox.recorder import Recorder
 
     schema = OmegaConf.structured(RecordConf)
-    merged = OmegaConf.merge(schema, cfg)
+    merged = OmegaConf.merge(schema, zen_cfg)
     conf = cast("RecordConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
     _run_safe(Recorder(conf).run)
 
 
-def _play_task(cfg: DictConfig) -> None:
+def _play_task(zen_cfg: DictConfig) -> None:
     """Play back recorded Redis stream messages."""
     from boomrdbox.player import Player
 
     schema = OmegaConf.structured(PlayConf)
-    merged = OmegaConf.merge(schema, cfg)
+    merged = OmegaConf.merge(schema, zen_cfg)
     conf = cast("PlayConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
     _run_safe(Player(conf).run)
 
 
-def _convert_task(cfg: DictConfig) -> None:
+def _convert_task(zen_cfg: DictConfig) -> None:
     """Convert a msgpack recording to Parquet or CSV."""
     from boomrdbox.tools import Converter
 
     schema = OmegaConf.structured(ConvertConf)
-    merged = OmegaConf.merge(schema, cfg)
+    merged = OmegaConf.merge(schema, zen_cfg)
     conf = cast("ConvertConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
     _run_safe(Converter(conf).run)
 
 
-def _truncate_task(cfg: DictConfig) -> None:
+def _truncate_task(zen_cfg: DictConfig) -> None:
     """Truncate a recording by message ID range."""
     from boomrdbox.tools import Truncator
 
     schema = OmegaConf.structured(TruncateConf)
-    merged = OmegaConf.merge(schema, cfg)
+    merged = OmegaConf.merge(schema, zen_cfg)
     conf = cast("TruncateConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
     _run_safe(Truncator(conf).run)
 
 
-def _info_task(cfg: DictConfig) -> None:
+def _info_task(zen_cfg: DictConfig) -> None:
     """Show statistics about a recording file."""
     from boomrdbox.tools import Info
 
     schema = OmegaConf.structured(InfoConf)
-    merged = OmegaConf.merge(schema, cfg)
+    merged = OmegaConf.merge(schema, zen_cfg)
     conf = cast("InfoConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
     _run_safe(Info(conf).run)

@@ -20,16 +20,23 @@ store = ZenStore()
 # ---------------------------------------------------------------------------
 # Redis config group
 # ---------------------------------------------------------------------------
-store(
-    RedisConf(host="localhost", port=6379, db=0, password=None),
-    name="local",
-    group="redis",
+_LocalRedisConf = make_config(
+    host="${oc.env:REDIS_HOST,localhost}",
+    port="${oc.env:REDIS_PORT,6379}",
+    db="${oc.env:REDIS_DB,0}",
+    password="${oc.decode:${oc.env:REDIS_PASSWORD,null}}",  # noqa: S106
+    bases=(RedisConf,),
 )
-store(
-    RedisConf(host="prod-redis", port=6379, db=0, password=None),
-    name="prod",
-    group="redis",
+store(_LocalRedisConf, name="local", group="redis")
+
+_ProdRedisConf = make_config(
+    host="${oc.env:REDIS_HOST,prod-redis}",
+    port="${oc.env:REDIS_PORT,6379}",
+    db="${oc.env:REDIS_DB,0}",
+    password="${oc.decode:${oc.env:REDIS_PASSWORD,null}}",  # noqa: S106
+    bases=(RedisConf,),
 )
+store(_ProdRedisConf, name="prod", group="redis")
 
 # ---------------------------------------------------------------------------
 # Streams config group

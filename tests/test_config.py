@@ -1,9 +1,16 @@
 """Tests for Hydra config composition from programmatic store."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from hydra import compose, initialize
 from omegaconf import DictConfig, OmegaConf
 
 from boomrdbox._config import store
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def _compose(config_name: str, overrides: list[str] | None = None) -> DictConfig:
@@ -125,3 +132,53 @@ class TestScalarOverrides:
     def test_play_max_delay_override(self):
         cfg = _compose("play", overrides=["max_delay=10.0"])
         assert cfg.max_delay == 10.0
+
+
+class TestEnvVarOverrides:
+    """Verify REDIS_* environment variables propagate into config."""
+
+    def test_redis_host_from_env(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("REDIS_HOST", "envhost")
+        cfg = _compose("record")
+        resolved = OmegaConf.to_container(cfg, resolve=True)
+        assert isinstance(resolved, dict)
+        redis = resolved["redis"]
+        assert isinstance(redis, dict)
+        assert redis["host"] == "envhost"
+
+    def test_redis_port_coerced_to_int(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("REDIS_PORT", "6380")
+        cfg = _compose("record")
+        resolved = OmegaConf.to_container(cfg, resolve=True)
+        assert isinstance(resolved, dict)
+        redis = resolved["redis"]
+        assert isinstance(redis, dict)
+        assert redis["port"] == 6380
+
+    def test_redis_password_from_env(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("REDIS_PASSWORD", "secret")
+        cfg = _compose("record")
+        resolved = OmegaConf.to_container(cfg, resolve=True)
+        assert isinstance(resolved, dict)
+        redis = resolved["redis"]
+        assert isinstance(redis, dict)
+        assert redis["password"] == "secret"  # noqa: S105
+
+    def test_env_vars_ignored_for_convert(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("REDIS_HOST", "envhost")
+        cfg = _compose("convert")
+        assert "redis" not in cfg
+
+    def test_env_vars_ignored_for_info(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("REDIS_HOST", "envhost")
+        cfg = _compose("info")
+        assert "redis" not in cfg
+
+    def test_cli_override_takes_precedence(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("REDIS_HOST", "envhost")
+        cfg = _compose("record", overrides=["redis.host=clihost"])
+        resolved = OmegaConf.to_container(cfg, resolve=True)
+        assert isinstance(resolved, dict)
+        redis = resolved["redis"]
+        assert isinstance(redis, dict)
+        assert redis["host"] == "clihost"
