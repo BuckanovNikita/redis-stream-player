@@ -179,6 +179,7 @@ class TruncateConf:
     from_id: str | None = None
     to_id: str | None = None
     auto_start: bool = False
+    interactive: bool = False
     verbose: bool = False
 
 

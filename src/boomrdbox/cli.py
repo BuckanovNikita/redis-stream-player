@@ -76,12 +76,22 @@ def _convert_task(zen_cfg: DictConfig) -> None:
 
 def _truncate_task(zen_cfg: DictConfig) -> None:
     """Truncate a recording by message ID range."""
-    from boomrdbox.tools import Truncator
-
     schema = OmegaConf.structured(TruncateConf)
     merged = OmegaConf.merge(schema, zen_cfg)
     conf = cast("TruncateConf", OmegaConf.to_object(merged))
     _setup_logging(verbose=conf.verbose)
+
+    if conf.interactive:
+        from boomrdbox.tui import TruncateApp
+
+        logger.remove()
+        TruncateApp(conf).run()
+        if conf.from_id is None and conf.to_id is None:
+            return
+        _setup_logging(verbose=conf.verbose)
+
+    from boomrdbox.tools import Truncator
+
     _run_safe(Truncator(conf).run)
 
 

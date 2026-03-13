@@ -14,6 +14,7 @@ dependencies = [
     "pyarrow>=15.0",
     "tqdm>=4.66",
     "loguru>=0.7",
+    "textual>=1.0,<2.0",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +31,7 @@ dev = [
     "types-pyyaml",
     "types-redis",
     "types-tqdm",
+    "pytest-asyncio",
 ]
 
 [project.scripts]
@@ -65,6 +67,7 @@ fixable = ["ALL"]
 "integration/**" = ["S101", "D", "ANN", "INP001", "T201"]
 "src/boomrdbox/cli.py" = ["PLC0415"]
 "src/boomrdbox/tools.py" = ["PLC0415"]
+"src/boomrdbox/tui.py" = ["PLC0415", "RUF001", "D107", "FBT001"]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -85,6 +88,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["hydra_zen.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["textual.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -110,7 +117,7 @@ name = "Layered architecture"
 type = "layers"
 layers = [
     "boomrdbox.cli",
-    "boomrdbox._config | boomrdbox.recorder | boomrdbox.player | boomrdbox.tools",
+    "boomrdbox._config | boomrdbox.recorder | boomrdbox.player | boomrdbox.tools | boomrdbox.tui",
     "boomrdbox.io",
     "boomrdbox.models",
 ]
@@ -126,4 +133,5 @@ forbidden_modules = [
     "boomrdbox.tools",
     "boomrdbox.cli",
     "boomrdbox._config",
+    "boomrdbox.tui",
 ]
