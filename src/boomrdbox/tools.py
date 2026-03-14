@@ -27,10 +27,9 @@ class Converter:
     def run(self) -> None:
         """Read msgpack and write to the configured output format."""
         logger.info(
-            "Converting %s to %s -> %s",
-            self._conf.input,
-            self._conf.format,
-            self._conf.output,
+            f"Converting {self._conf.input}"
+            f" to {self._conf.format}"
+            f" -> {self._conf.output}",
         )
         reader = RecordReader(self._conf.input)
         fmt = self._conf.format
@@ -64,7 +63,7 @@ class Converter:
             progress.update(1)
 
         progress.close()
-        logger.debug("Read %d records for conversion", len(rows))
+        logger.debug(f"Read {len(rows)} records for conversion")
 
         if not rows:
             logger.info("No records found, output file not created")
@@ -96,12 +95,7 @@ class Converter:
         else:
             pcsv.write_csv(table, self._conf.output)
 
-        logger.info(
-            "Converted %d records to %s: %s",
-            len(rows),
-            fmt,
-            self._conf.output,
-        )
+        logger.info(f"Converted {len(rows)} records to {fmt}: {self._conf.output}")
 
 
 class Truncator:
@@ -114,11 +108,10 @@ class Truncator:
     def run(self) -> None:
         """Read input, filter by ID range, write to output."""
         logger.info(
-            "Truncating %s -> %s (from_id=%s, to_id=%s)",
-            self._conf.input,
-            self._conf.output,
-            self._conf.from_id,
-            self._conf.to_id,
+            f"Truncating {self._conf.input}"
+            f" -> {self._conf.output}"
+            f" (from_id={self._conf.from_id},"
+            f" to_id={self._conf.to_id})",
         )
         reader = RecordReader(self._conf.input)
 
@@ -128,7 +121,7 @@ class Truncator:
         if self._conf.auto_start:
             from_id = self._find_auto_start(reader)
             if from_id is not None:
-                logger.info("Auto-start ID: %s", from_id)
+                logger.info(f"Auto-start ID: {from_id}")
 
         if self._conf.from_id is not None:
             from_id = MessageID.parse(self._conf.from_id)
@@ -170,12 +163,8 @@ class Truncator:
                 progress.update(1)
 
         progress.close()
-        logger.debug("Skipped %d records outside range", skipped)
-        logger.info(
-            "Truncated: %d records written to %s",
-            count,
-            self._conf.output,
-        )
+        logger.debug(f"Skipped {skipped} records outside range")
+        logger.info(f"Truncated: {count} records written to {self._conf.output}")
 
     @staticmethod
     def _find_auto_start(
@@ -205,7 +194,7 @@ class Info:
 
     def run(self) -> None:
         """Scan the file and print per-stream statistics."""
-        logger.info("Inspecting file: %s", self._conf.input)
+        logger.info(f"Inspecting file: {self._conf.input}")
         reader = RecordReader(self._conf.input)
 
         try:

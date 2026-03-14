@@ -67,11 +67,11 @@ def parse_stream_configs(raw_streams: list[Any]) -> list[StreamConfig]:
             msg = f"Unsupported stream config format: {item!r}"
             raise TypeError(msg)
     for cfg in configs:
+        ts_mode = cfg.timestamp_mode.value
         logger.debug(
-            "Parsed stream config: key=%s, ts_field=%s, ts_mode=%s",
-            cfg.key,
-            cfg.timestamp_field,
-            cfg.timestamp_mode.value,
+            f"Parsed stream config: key={cfg.key},"
+            f" ts_field={cfg.timestamp_field},"
+            f" ts_mode={ts_mode}",
         )
     return configs
 
@@ -88,7 +88,7 @@ class RecordWriter:
         self._file = self._path.open("ab")
         self._packer = msgpack.Packer(use_bin_type=True)
         self._count = 0
-        logger.debug("RecordWriter opened: %s", self._path)
+        logger.debug(f"RecordWriter opened: {self._path}")
 
     @property
     def path(self) -> str:
@@ -118,7 +118,7 @@ class RecordWriter:
 
         Returns the new file path.
         """
-        logger.debug("Closing %s (%d records)", self._path, self._count)
+        logger.debug(f"Closing {self._path} ({self._count} records)")
         self._file.flush()
         os.fsync(self._file.fileno())
         self._file.close()
@@ -131,7 +131,7 @@ class RecordWriter:
 
         self._file = self._path.open("ab")
         self._count = 0
-        logger.debug("Opened new file: %s", self._path)
+        logger.debug(f"Opened new file: {self._path}")
         return str(self._path)
 
     def close(self) -> None:
@@ -140,11 +140,7 @@ class RecordWriter:
             self._file.flush()
             os.fsync(self._file.fileno())
             self._file.close()
-            logger.debug(
-                "RecordWriter closed: %s (%d records)",
-                self._path,
-                self._count,
-            )
+            logger.debug(f"RecordWriter closed: {self._path} ({self._count} records)")
 
     def __enter__(self) -> Self:
         """Enter context manager."""
@@ -186,10 +182,10 @@ class RecordReader:
         Truncated trailing records are silently skipped with a log warning.
         """
         if not self._path.exists():
-            logger.warning("File does not exist: %s", self._path)
+            logger.warning(f"File does not exist: {self._path}")
             return
         if self._path.stat().st_size == 0:
-            logger.warning("File is empty: %s", self._path)
+            logger.warning(f"File is empty: {self._path}")
             return
 
         count = 0
@@ -199,7 +195,7 @@ class RecordReader:
                 for obj in unpacker:
                     self._bytes_read = unpacker.tell()
                     if not isinstance(obj, list) or len(obj) != 3:
-                        logger.warning("Skipping malformed record: %r", obj)
+                        logger.warning(f"Skipping malformed record: {obj!r}")
                         continue
                     stream_name, message_id_str, fields = obj
                     mid = MessageID.parse(str(message_id_str))
@@ -211,7 +207,6 @@ class RecordReader:
                     )
             except msgpack.UnpackValueError:
                 logger.warning(
-                    "Truncated file at %s, stopped at last complete record",
-                    self._path,
+                    f"Truncated file at {self._path}, stopped at last complete record",
                 )
-        logger.debug("RecordReader read %d records from %s", count, self._path)
+        logger.debug(f"RecordReader read {count} records from {self._path}")

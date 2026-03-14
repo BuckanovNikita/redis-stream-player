@@ -37,11 +37,10 @@ class Recorder:
         self._client: redis_lib.Redis[bytes] | None = None
         self._progress: tqdm[Any] | None = None
         logger.debug(
-            "Recorder: output=%s, batch=%s, duration=%s, size_mb=%s",
-            conf.output,
-            conf.batch_size,
-            conf.max_duration,
-            conf.max_size_mb,
+            f"Recorder: output={conf.output},"
+            f" batch={conf.batch_size},"
+            f" duration={conf.max_duration},"
+            f" size_mb={conf.max_size_mb}",
         )
 
     def _handle_signal(self, _signum: int, _frame: FrameType | None) -> None:
@@ -79,7 +78,7 @@ class Recorder:
             name="rotation-listener",
         )
         self._sub_thread.start()
-        logger.debug("Rotation subscription thread started on key=%s", rotate_key)
+        logger.debug(f"Rotation subscription thread started on key={rotate_key}")
 
     def run(self) -> None:
         """Run the recording loop until signal or limits reached."""
@@ -93,11 +92,9 @@ class Recorder:
 
         self._client = create_redis(self._conf.redis)
         self._client.ping()
-        logger.info(
-            "Connected to Redis at %s:%s",
-            self._conf.redis.host,
-            self._conf.redis.port,
-        )
+        host = self._conf.redis.host
+        port = self._conf.redis.port
+        logger.info(f"Connected to Redis at {host}:{port}")
         self._redis = self._client
 
         self._subscribe_rotation(self._client)
@@ -107,7 +104,7 @@ class Recorder:
             logger.error("No streams configured")
             return
 
-        logger.info("Recording streams: %s", ", ".join(stream_keys))
+        logger.info(f"Recording streams: {', '.join(stream_keys)}")
 
         last_ids: dict[str, str] = {}
         for key in stream_keys:
@@ -139,10 +136,8 @@ class Recorder:
 
         total_elapsed = time.monotonic() - start_time
         logger.info(
-            "Recording complete: %d messages in %.1fs, file: %s",
-            writer.count,
-            total_elapsed,
-            writer.path,
+            f"Recording complete: {writer.count} messages"
+            f" in {total_elapsed:.1f}s, file: {writer.path}",
         )
 
     def _check_limits(
@@ -158,7 +153,7 @@ class Recorder:
         if max_duration is not None:
             elapsed = time.monotonic() - start_time
             if elapsed >= max_duration:
-                logger.info("Max duration %.1fs reached", max_duration)
+                logger.info(f"Max duration {max_duration:.1f}s reached")
                 return True
 
         max_size_bytes = (
@@ -177,7 +172,7 @@ class Recorder:
         if self._rotate_flag.is_set():
             self._rotate_flag.clear()
             new_path = writer.rotate()
-            logger.info("Rotated to %s", new_path)
+            logger.info(f"Rotated to {new_path}")
 
     def _record_loop(
         self,
@@ -219,14 +214,11 @@ class Recorder:
             if result is None:
                 continue
 
-            logger.debug(
-                "XREAD returned %d stream(s): %s",
-                len(result),
-                ", ".join(
-                    f"{s[0].decode() if isinstance(s[0], bytes) else s[0]}={len(s[1])}"
-                    for s in result
-                ),
+            stream_summary = ", ".join(
+                f"{s[0].decode() if isinstance(s[0], bytes) else s[0]}={len(s[1])}"
+                for s in result
             )
+            logger.debug(f"XREAD returned {len(result)} stream(s): {stream_summary}")
 
             batch_count = self._process_xread_result(
                 result,
@@ -258,12 +250,12 @@ class Recorder:
                     else str(stream_name_bytes)
                 )
             except (UnicodeDecodeError, AttributeError):
-                logger.exception("Failed to decode stream name: %r", stream_name_bytes)
+                logger.exception(f"Failed to decode stream name: {stream_name_bytes!r}")
                 continue
 
             if stream_name not in stream_keys:
                 if stream_name not in warned_streams:
-                    logger.warning("Unexpected stream %s", stream_name)
+                    logger.warning(f"Unexpected stream {stream_name}")
                     warned_streams.add(stream_name)
                 continue
 
@@ -275,7 +267,7 @@ class Recorder:
                         else str(msg_id_bytes)
                     )
                 except (UnicodeDecodeError, AttributeError):
-                    logger.exception("Failed to decode message ID: %r", msg_id_bytes)
+                    logger.exception(f"Failed to decode message ID: {msg_id_bytes!r}")
                     continue
 
                 fields: dict[str, object] = {}
@@ -286,9 +278,7 @@ class Recorder:
                         fields[key_str] = val
                 except (UnicodeDecodeError, AttributeError):
                     logger.exception(
-                        "Failed to decode fields for %s/%s",
-                        stream_name,
-                        msg_id_str,
+                        f"Failed to decode fields for {stream_name}/{msg_id_str}",
                     )
                     continue
 

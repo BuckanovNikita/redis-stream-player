@@ -34,7 +34,7 @@ dependencies = [
     { name = "tqdm" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "import-linter" },
     { name = "mypy" },
@@ -55,29 +55,32 @@ dev = [
 requires-dist = [
     { name = "hydra-core", specifier = ">=1.3,<2.0" },
     { name = "hydra-zen", specifier = ">=0.13" },
-    { name = "import-linter", marker = "extra == 'dev'" },
     { name = "loguru", specifier = ">=0.7" },
     { name = "msgpack", specifier = ">=1.0,<2.0" },
-    { name = "mypy", marker = "extra == 'dev'" },
     { name = "omegaconf", specifier = ">=2.3" },
-    { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pyarrow", specifier = ">=15.0" },
     { name = "pydantic", specifier = ">=2.0,<3.0" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "pytest-mock", marker = "extra == 'dev'" },
-    { name = "pytest-xdist", marker = "extra == 'dev'" },
     { name = "redis", specifier = ">=5.0,<6.0" },
-    { name = "ruff", marker = "extra == 'dev'" },
     { name = "textual", specifier = ">=1.0,<2.0" },
     { name = "tqdm", specifier = ">=4.66" },
-    { name = "types-pyyaml", marker = "extra == 'dev'" },
-    { name = "types-redis", marker = "extra == 'dev'" },
-    { name = "types-tqdm", marker = "extra == 'dev'" },
-    { name = "vulture", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "import-linter" },
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+    { name = "types-pyyaml" },
+    { name = "types-redis" },
+    { name = "types-tqdm" },
+    { name = "vulture" },
+]
 
 [[package]]
 name = "cffi"

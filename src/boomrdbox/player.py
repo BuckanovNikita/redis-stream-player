@@ -73,13 +73,11 @@ class Player:
         self._client: redis_lib.Redis[bytes] | None = None
         self._progress: tqdm[Any] | None = None
         logger.debug(
-            "Player config: input=%s, speed=%s, max_delay=%s,"
-            " batch_size=%s, prefetch=%s",
-            conf.input,
-            conf.speed,
-            conf.max_delay,
-            conf.batch_size,
-            conf.prefetch,
+            f"Player config: input={conf.input},"
+            f" speed={conf.speed},"
+            f" max_delay={conf.max_delay},"
+            f" batch_size={conf.batch_size},"
+            f" prefetch={conf.prefetch}",
         )
 
     def _handle_signal(self, _signum: int, _frame: FrameType | None) -> None:
@@ -103,11 +101,7 @@ class Player:
 
         ts_field = config.timestamp_field
         if ts_field not in fields:
-            logger.debug(
-                "Timestamp field %r missing in stream %s",
-                ts_field,
-                config.key,
-            )
+            logger.debug(f"Timestamp field {ts_field!r} missing in stream {config.key}")
             return fields
 
         raw_val = fields[ts_field]
@@ -117,11 +111,7 @@ class Player:
             else:
                 original_ts_ns = int(str(raw_val))
         except (ValueError, TypeError):
-            logger.warning(
-                "Non-numeric timestamp %r in stream %s",
-                raw_val,
-                config.key,
-            )
+            logger.warning(f"Non-numeric timestamp {raw_val!r} in stream {config.key}")
             return fields
 
         original_offset = original_msg_id.ms * _NS_PER_MS - original_ts_ns
@@ -213,14 +203,11 @@ class Player:
         self._client = create_redis(self._conf.redis)
         self._client.ping()
         logger.info(
-            "Connected to Redis at %s:%s",
-            self._conf.redis.host,
-            self._conf.redis.port,
+            f"Connected to Redis at {self._conf.redis.host}:{self._conf.redis.port}",
         )
         reader = RecordReader(self._conf.input)
         logger.info(
-            "Playing streams: %s",
-            ", ".join(sc.key for sc in self._stream_configs),
+            f"Playing streams: {', '.join(sc.key for sc in self._stream_configs)}",
         )
 
         self._progress = tqdm(
@@ -280,7 +267,7 @@ class Player:
             signal.signal(signal.SIGTERM, original_sigterm)
             self._running = False
 
-        logger.info("Playback complete: %d messages replayed", replayed)
+        logger.info(f"Playback complete: {replayed} messages replayed")
 
     def _flush_pipeline(
         self,
@@ -292,11 +279,9 @@ class Player:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 stream_name, xadd_fields = pipe_meta[i]
+                field_keys = list(xadd_fields.keys())
                 logger.error(
-                    "Failed to XADD to %s (fields: %s): %s",
-                    stream_name,
-                    list(xadd_fields.keys()),
-                    result,
+                    f"Failed to XADD to {stream_name} (fields: {field_keys}): {result}",
                 )
 
     def _replay_batch(
@@ -311,7 +296,7 @@ class Player:
         speed = self._conf.speed
         max_delay = self._conf.max_delay
 
-        logger.debug("Replaying batch of %d records", len(batch))
+        logger.debug(f"Replaying batch of {len(batch)} records")
 
         local_prev_id = prev_msg_id
         local_prev_mono = prev_mono
@@ -329,10 +314,7 @@ class Player:
                 if delta_ms > 0:
                     delay = min((delta_ms / 1000.0) / speed, max_delay)
                     logger.debug(
-                        "Delay %.3fs (delta_ms=%d, speed=%.1f)",
-                        delay,
-                        delta_ms,
-                        speed,
+                        f"Delay {delay:.3f}s (delta_ms={delta_ms}, speed={speed:.1f})",
                     )
                     if delay > 0:
                         # Flush pending commands before sleeping
