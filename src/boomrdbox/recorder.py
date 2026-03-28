@@ -5,6 +5,7 @@ from __future__ import annotations
 import signal
 import threading
 import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import redis as redis_lib
@@ -202,12 +203,29 @@ class Recorder:
         assert self._progress is not None  # noqa: S101
         progress = self._progress
         warned_streams: set[str] = set()
+        last_status_time = start_time
+        status_interval = 60.0
+        start_wall = datetime.now(tz=UTC)
 
         while self._running:
             if self._check_limits(writer, start_time):
                 break
 
             self._maybe_rotate(writer)
+
+            now = time.monotonic()
+            if now - last_status_time >= status_interval:
+                elapsed = now - start_time
+                elapsed_min = int(elapsed // 60)
+                elapsed_sec = int(elapsed % 60)
+                current_wall = datetime.now(tz=UTC)
+                logger.info(
+                    f"Status: {writer.count} messages collected,"
+                    f" started {start_wall:%H:%M:%S},"
+                    f" now {current_wall:%H:%M:%S},"
+                    f" elapsed {elapsed_min}m{elapsed_sec:02d}s",
+                )
+                last_status_time = now
 
             streams_arg = {k: last_ids[k] for k in stream_keys if k in last_ids}
             if not streams_arg:
