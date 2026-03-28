@@ -6,18 +6,10 @@ This module contains pure domain types with no third-party dependencies.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Annotated, Any
 
 from pydantic import Field, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-
-
-class TimestampMode(Enum):
-    """How to handle timestamp fields during playback."""
-
-    BYPASS = "bypass"
-    SHIFT = "shift"
 
 
 class InvalidMessageIDError(ValueError):
@@ -70,8 +62,6 @@ class StreamConfig:
     """Configuration for a single Redis stream to record/play."""
 
     key: str
-    timestamp_field: str | None = None
-    timestamp_mode: TimestampMode = TimestampMode.BYPASS
 
 
 @dataclass(frozen=True)
@@ -122,7 +112,6 @@ class ReadInstanceConf:
     ssh_tunnel: SshTunnelConf | None = None
 
 
-_VALID_TIMESTAMP_MODES = frozenset({"bypass", "shift"})
 _VALID_CONVERT_FORMATS = frozenset({"parquet", "csv"})
 
 
@@ -131,17 +120,6 @@ class StreamItemConf:
     """Single stream item in Hydra config."""
 
     key: str = ""
-    timestamp_field: str | None = None
-    timestamp_mode: str = "bypass"
-
-    @field_validator("timestamp_mode")
-    @classmethod
-    def _check_timestamp_mode(cls, v: str) -> str:
-        if v not in _VALID_TIMESTAMP_MODES:
-            allowed = sorted(_VALID_TIMESTAMP_MODES)
-            msg = f"timestamp_mode must be one of {allowed}, got {v!r}"
-            raise ValueError(msg)
-        return v
 
 
 @pydantic_dataclass
@@ -172,13 +150,14 @@ class PlayConf:
     """Player Hydra configuration."""
 
     redis: RedisConf = field(default_factory=RedisConf)
-    streams: StreamsConf = field(default_factory=StreamsConf)
     input: str = "recording.msgpack"
     speed: Annotated[float, Field(gt=0)] = 1.0
     max_delay: Annotated[float, Field(gt=0)] = 60.0
     batch_size: Annotated[int, Field(gt=0)] = 1000
     prefetch: Annotated[int, Field(gt=0)] = 4
     verbose: bool = False
+    exclude_streams: list[str] = field(default_factory=list)
+    rename_streams: dict[str, str] = field(default_factory=dict)
 
 
 @pydantic_dataclass

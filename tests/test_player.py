@@ -13,36 +13,22 @@ from boomrdbox.models import (
     PlayConf,
     RedisConf,
     StreamRecord,
-    StreamsConf,
     UnsafePlayTargetError,
 )
 from boomrdbox.player import Player, _format_ms, validate_play_target
 
-_DEFAULT_PLAY_STREAMS: list[Any] = [
-    {
-        "key": "sensor:imu",
-        "timestamp_field": "receive_ts",
-        "timestamp_mode": "bypass",
-    },
-    {
-        "key": "sensor:camera",
-        "timestamp_field": "ts_nano",
-        "timestamp_mode": "shift",
-    },
-]
-
 
 def _make_play_conf(input_path: str, **overrides: Any) -> PlayConf:
-    stream_list: list[Any] = overrides.pop("streams", _DEFAULT_PLAY_STREAMS)
     defaults: dict[str, Any] = {
         "redis": RedisConf(),
-        "streams": StreamsConf(streams=stream_list),
         "input": input_path,
         "speed": 1.0,
         "max_delay": 60.0,
         "batch_size": 1000,
         "prefetch": 4,
         "verbose": False,
+        "exclude_streams": [],
+        "rename_streams": {},
     }
     defaults.update(overrides)
     return PlayConf(**defaults)
@@ -142,41 +128,6 @@ class TestPlayer:
 
     @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
-    @patch("boomrdbox.player.time")
-    def test_timestamp_shift(
-        self,
-        mock_time: Any,
-        mock_create_redis: Any,
-        _mock_hosts: Any,
-        tmp_path: Path,
-    ) -> None:
-        mock_client = MagicMock()
-        mock_pipe = MagicMock()
-        mock_client.pipeline.return_value = mock_pipe
-        mock_pipe.execute.return_value = []
-        mock_create_redis.return_value = mock_client
-        mock_time.monotonic.return_value = 0.0
-        mock_time.time_ns.return_value = 1709312000300_000_000_000
-
-        fpath = tmp_path / "shift.msgpack"
-        record = StreamRecord(
-            "sensor:camera",
-            MessageID(1709312000300, 0),
-            {"ts_nano": "1709312000300000000", "frame": "1"},
-        )
-        with RecordWriter(fpath) as writer:
-            writer.write(record)
-
-        conf = _make_play_conf(str(fpath), speed=1000.0)
-        player = Player(conf)
-        player.run()
-
-        call = mock_pipe.xadd.call_args
-        fields = call.args[1]
-        assert "ts_nano" in fields
-
-    @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
-    @patch("boomrdbox.player.create_redis")
     def test_producer_consumer_produces_correct_sequence(
         self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
     ) -> None:
@@ -199,12 +150,10 @@ class TestPlayer:
             for r in records:
                 writer.write(r)
 
-        # Use batch_size=5 so all records are in one batch
         conf = _make_play_conf(
             str(fpath),
             speed=1000.0,
             batch_size=5,
-            streams=[{"key": "s1"}, {"key": "s2"}],
         )
         player = Player(conf)
         player.run()
@@ -235,25 +184,86 @@ class TestPlayer:
             for r in records:
                 writer.write(r)
 
-        # batch_size=3 means 4 batches (3+3+3+1)
         conf = _make_play_conf(
             str(fpath),
             speed=1000.0,
             batch_size=3,
             prefetch=2,
-            streams=[{"key": "s"}],
         )
         player = Player(conf)
         player.run()
 
         assert mock_pipe.xadd.call_count == 10
 
+    @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
+    @patch("boomrdbox.player.create_redis")
+    def test_exclude_streams(
+        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
+    ) -> None:
+        """Excluded streams are not replayed."""
+        mock_client = MagicMock()
+        mock_pipe = MagicMock()
+        mock_client.pipeline.return_value = mock_pipe
+        mock_pipe.execute.return_value = []
+        mock_create_redis.return_value = mock_client
+
+        fpath = tmp_path / "exclude.msgpack"
+        records = [
+            StreamRecord("s1", MessageID(100, 0), {"a": "1"}),
+            StreamRecord("s2", MessageID(200, 0), {"b": "2"}),
+            StreamRecord("s1", MessageID(300, 0), {"c": "3"}),
+        ]
+        with RecordWriter(fpath) as writer:
+            for r in records:
+                writer.write(r)
+
+        conf = _make_play_conf(str(fpath), speed=1000.0, exclude_streams=["s2"])
+        player = Player(conf)
+        player.run()
+
+        calls = mock_pipe.xadd.call_args_list
+        assert len(calls) == 2
+        assert all(c.args[0] == "s1" for c in calls)
+
+    @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
+    @patch("boomrdbox.player.create_redis")
+    def test_rename_streams(
+        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
+    ) -> None:
+        """Renamed streams use the target name in xadd."""
+        mock_client = MagicMock()
+        mock_pipe = MagicMock()
+        mock_client.pipeline.return_value = mock_pipe
+        mock_pipe.execute.return_value = []
+        mock_create_redis.return_value = mock_client
+
+        fpath = tmp_path / "rename.msgpack"
+        records = [
+            StreamRecord("s1", MessageID(100, 0), {"a": "1"}),
+            StreamRecord("s2", MessageID(200, 0), {"b": "2"}),
+        ]
+        with RecordWriter(fpath) as writer:
+            for r in records:
+                writer.write(r)
+
+        conf = _make_play_conf(
+            str(fpath), speed=1000.0, rename_streams={"s1": "renamed:s1"}
+        )
+        player = Player(conf)
+        player.run()
+
+        calls = mock_pipe.xadd.call_args_list
+        assert len(calls) == 2
+        assert calls[0].args[0] == "renamed:s1"
+        assert calls[1].args[0] == "s2"
+
     def test_hydra_config_composes(self, hydra_play_cfg: Any) -> None:
         """Verify Hydra-composed play config has required keys."""
         assert "redis" in hydra_play_cfg
-        assert "streams" in hydra_play_cfg
         assert "speed" in hydra_play_cfg
         assert "prefetch" in hydra_play_cfg
+        assert "exclude_streams" in hydra_play_cfg
+        assert "rename_streams" in hydra_play_cfg
 
 
 class TestPlayTargetValidation:

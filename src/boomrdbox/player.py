@@ -17,14 +17,11 @@ from boomrdbox.instances import load_allowed_play_hosts
 from boomrdbox.io import (
     RecordReader,
     create_redis,
-    parse_stream_configs,
 )
 from boomrdbox.models import (
     MessageID,
     PlayConf,
-    StreamConfig,
     StreamRecord,
-    TimestampMode,
     UnsafePlayTargetError,
 )
 
@@ -32,8 +29,6 @@ if TYPE_CHECKING:
     from types import FrameType
 
     import redis as redis_lib
-
-_NS_PER_MS = 1_000_000
 
 
 def validate_play_target(host: str, allowed_hosts: list[str]) -> None:
@@ -78,10 +73,8 @@ class Player:
     def __init__(self, conf: PlayConf) -> None:
         """Initialize with player configuration."""
         self._conf = conf
-        self._stream_configs = parse_stream_configs(list(conf.streams.streams))
-        self._config_map: dict[str, StreamConfig] = {
-            sc.key: sc for sc in self._stream_configs
-        }
+        self._exclude_streams: set[str] = set(conf.exclude_streams)
+        self._rename_streams: dict[str, str] = dict(conf.rename_streams)
         self._running = False
         self._stop_event = threading.Event()
         self._client: redis_lib.Redis[bytes] | None = None
@@ -101,56 +94,15 @@ class Player:
         self._running = False
         self._stop_event.set()
 
-    def _adjust_timestamp(
-        self,
-        config: StreamConfig,
-        fields: dict[str, object],
-        original_msg_id: MessageID,
-    ) -> dict[str, object]:
-        """Adjust timestamp field if configured for shift mode."""
-        if config.timestamp_mode != TimestampMode.SHIFT:
-            return fields
-        if config.timestamp_field is None:
-            return fields
-
-        ts_field = config.timestamp_field
-        if ts_field not in fields:
-            logger.debug(f"Timestamp field {ts_field!r} missing in stream {config.key}")
-            return fields
-
-        raw_val = fields[ts_field]
-        try:
-            if isinstance(raw_val, (int, str)):
-                original_ts_ns = int(raw_val)
-            else:
-                original_ts_ns = int(str(raw_val))
-        except (ValueError, TypeError):
-            logger.warning(f"Non-numeric timestamp {raw_val!r} in stream {config.key}")
-            return fields
-
-        original_offset = original_msg_id.ms * _NS_PER_MS - original_ts_ns
-        now_ns = time.time_ns()
-        adjusted_ts_ns = now_ns - original_offset
-
-        fields[ts_field] = str(adjusted_ts_ns)
-        return fields
-
     def _prepare_fields(
         self,
         record: StreamRecord,
     ) -> dict[str, str | bytes]:
-        """Prepare XADD fields from a record, applying timestamp adjustments."""
-        config = self._config_map.get(record.stream_name)
-        fields = dict(record.fields)
-        if config is not None:
-            fields = self._adjust_timestamp(config, fields, record.message_id)
-
+        """Prepare XADD fields from a record."""
         xadd_fields: dict[str, str | bytes] = {}
-        for k, v in fields.items():
-            if isinstance(v, (str, bytes)):
-                xadd_fields[k if isinstance(k, str) else str(k)] = v
-            else:
-                xadd_fields[k if isinstance(k, str) else str(k)] = str(v)
+        for k, v in record.fields.items():
+            key = k if isinstance(k, str) else str(k)
+            xadd_fields[key] = v if isinstance(v, (str, bytes)) else str(v)
         return xadd_fields
 
     def _producer_loop(
@@ -167,13 +119,17 @@ class Player:
             for record in reader:
                 if self._stop_event.is_set():
                     break
+                if record.stream_name in self._exclude_streams:
+                    continue
                 batch.append(record)
 
                 if len(batch) >= batch_size:
                     batch.sort(key=lambda r: r.message_id)
                     prepared = [
                         _PreparedRecord(
-                            stream_name=r.stream_name,
+                            stream_name=self._rename_streams.get(
+                                r.stream_name, r.stream_name
+                            ),
                             message_id=r.message_id,
                             xadd_fields=self._prepare_fields(r),
                         )
@@ -189,7 +145,9 @@ class Player:
                 batch.sort(key=lambda r: r.message_id)
                 prepared = [
                     _PreparedRecord(
-                        stream_name=r.stream_name,
+                        stream_name=self._rename_streams.get(
+                            r.stream_name, r.stream_name
+                        ),
                         message_id=r.message_id,
                         xadd_fields=self._prepare_fields(r),
                     )
@@ -223,9 +181,12 @@ class Player:
             f"Connected to Redis at {self._conf.redis.host}:{self._conf.redis.port}",
         )
         reader = RecordReader(self._conf.input)
-        logger.info(
-            f"Playing streams: {', '.join(sc.key for sc in self._stream_configs)}",
-        )
+        if self._exclude_streams:
+            excluded = ", ".join(sorted(self._exclude_streams))
+            logger.info(f"Excluding streams: {excluded}")
+        if self._rename_streams:
+            renames = ", ".join(f"{k} -> {v}" for k, v in self._rename_streams.items())
+            logger.info(f"Renaming streams: {renames}")
 
         self._progress = tqdm(
             total=0,

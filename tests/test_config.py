@@ -32,10 +32,11 @@ class TestConfigComposition:
     def test_play_composes(self):
         cfg = _compose("play")
         assert "redis" in cfg
-        assert "streams" in cfg
         assert "input" in cfg
         assert "speed" in cfg
         assert "max_delay" in cfg
+        assert "exclude_streams" in cfg
+        assert "rename_streams" in cfg
 
     def test_convert_composes(self):
         cfg = _compose("convert")
@@ -87,31 +88,19 @@ class TestStreamOverrides:
 
     def test_sensors_streams(self):
         cfg = _compose("record", overrides=["streams=sensors"])
-        streams = cfg.streams.streams
+        streams = list(cfg.streams.streams)
         assert len(streams) == 3
-        keys = [s.key for s in streams]
-        assert "sensor:imu" in keys
-        assert "sensor:gps" in keys
-        assert "sensor:camera" in keys
+        assert "sensor:imu" in streams
+        assert "sensor:gps" in streams
+        assert "sensor:camera" in streams
 
     def test_events_streams(self):
         cfg = _compose("record", overrides=["streams=events"])
-        streams = cfg.streams.streams
+        streams = list(cfg.streams.streams)
         assert len(streams) == 3
-        keys = [s.key for s in streams]
-        assert "events:user" in keys
-        assert "events:system" in keys
-        assert "events:audit" in keys
-
-    def test_sensors_timestamp_config(self):
-        cfg = _compose("play", overrides=["streams=sensors"])
-        streams = cfg.streams.streams
-        imu = next(s for s in streams if s.key == "sensor:imu")
-        assert imu.timestamp_field == "receive_ts"
-        assert imu.timestamp_mode == "bypass"
-        camera = next(s for s in streams if s.key == "sensor:camera")
-        assert camera.timestamp_field == "ts_nano"
-        assert camera.timestamp_mode == "shift"
+        assert "events:user" in streams
+        assert "events:system" in streams
+        assert "events:audit" in streams
 
 
 class TestScalarOverrides:

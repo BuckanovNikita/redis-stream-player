@@ -18,7 +18,6 @@ from boomrdbox.models import (
     StreamConfig,
     StreamItemConf,
     StreamRecord,
-    TimestampMode,
 )
 
 if TYPE_CHECKING:
@@ -80,41 +79,21 @@ def create_tunneled_redis(
 def parse_stream_configs(raw_streams: list[Any]) -> list[StreamConfig]:
     """Parse stream configs from Hydra's raw list.
 
-    Supports both short form (plain strings) and dict form with
-    ``key``, ``timestamp_field``, and ``timestamp_mode``.
+    Supports both short form (plain strings) and dict form with ``key``.
     """
     configs: list[StreamConfig] = []
     for item in raw_streams:
         if isinstance(item, str):
             configs.append(StreamConfig(key=item))
         elif isinstance(item, StreamItemConf):
-            mode = TimestampMode(item.timestamp_mode or "bypass")
-            configs.append(
-                StreamConfig(
-                    key=item.key,
-                    timestamp_field=item.timestamp_field,
-                    timestamp_mode=mode,
-                )
-            )
+            configs.append(StreamConfig(key=item.key))
         elif isinstance(item, dict):
-            mode = TimestampMode(item.get("timestamp_mode", "bypass") or "bypass")
-            configs.append(
-                StreamConfig(
-                    key=item["key"],
-                    timestamp_field=item.get("timestamp_field"),
-                    timestamp_mode=mode,
-                )
-            )
+            configs.append(StreamConfig(key=item["key"]))
         else:
             msg = f"Unsupported stream config format: {item!r}"
             raise TypeError(msg)
     for cfg in configs:
-        ts_mode = cfg.timestamp_mode.value
-        logger.debug(
-            f"Parsed stream config: key={cfg.key},"
-            f" ts_field={cfg.timestamp_field},"
-            f" ts_mode={ts_mode}",
-        )
+        logger.debug(f"Parsed stream config: key={cfg.key}")
     return configs
 
 

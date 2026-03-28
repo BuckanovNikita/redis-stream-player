@@ -12,7 +12,6 @@ from boomrdbox.models import (
     StreamConfig,
     StreamItemConf,
     StreamRecord,
-    TimestampMode,
 )
 
 
@@ -65,17 +64,7 @@ class TestMessageID:
 class TestStreamConfig:
     def test_defaults(self):
         sc = StreamConfig(key="test:stream")
-        assert sc.timestamp_field is None
-        assert sc.timestamp_mode == TimestampMode.BYPASS
-
-    def test_with_shift(self):
-        sc = StreamConfig(
-            key="test:stream",
-            timestamp_field="ts",
-            timestamp_mode=TimestampMode.SHIFT,
-        )
-        assert sc.timestamp_field == "ts"
-        assert sc.timestamp_mode == TimestampMode.SHIFT
+        assert sc.key == "test:stream"
 
 
 class TestStreamRecord:
@@ -91,16 +80,6 @@ class TestStreamRecord:
         assert record.fields == {"key": "value"}
 
 
-class TestTimestampMode:
-    def test_values(self):
-        assert TimestampMode.BYPASS.value == "bypass"
-        assert TimestampMode.SHIFT.value == "shift"
-
-    def test_from_string(self):
-        assert TimestampMode("bypass") == TimestampMode.BYPASS
-        assert TimestampMode("shift") == TimestampMode.SHIFT
-
-
 class TestConfigValidation:
     def test_redis_port_too_low(self):
         with pytest.raises(ValidationError):
@@ -113,10 +92,6 @@ class TestConfigValidation:
     def test_record_batch_size_zero(self):
         with pytest.raises(ValidationError):
             RecordConf(batch_size=0)
-
-    def test_stream_item_invalid_mode(self):
-        with pytest.raises(ValidationError):
-            StreamItemConf(timestamp_mode="invalid")
 
     def test_convert_invalid_format(self):
         with pytest.raises(ValidationError):

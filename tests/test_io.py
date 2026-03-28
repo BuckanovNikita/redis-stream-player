@@ -9,7 +9,6 @@ from boomrdbox.models import (
     MessageID,
     StreamConfig,
     StreamRecord,
-    TimestampMode,
 )
 
 
@@ -88,16 +87,12 @@ class TestParseStreamConfigs:
     def test_dict_form(self):
         result = parse_stream_configs(
             [
-                {"key": "stream:a", "timestamp_field": "ts", "timestamp_mode": "shift"},
+                {"key": "stream:a"},
                 {"key": "stream:b"},
             ]
         )
         assert len(result) == 2
-        assert result[0] == StreamConfig(
-            key="stream:a",
-            timestamp_field="ts",
-            timestamp_mode=TimestampMode.SHIFT,
-        )
+        assert result[0] == StreamConfig(key="stream:a")
         assert result[1] == StreamConfig(key="stream:b")
 
     def test_invalid_type(self):

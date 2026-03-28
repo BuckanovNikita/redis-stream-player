@@ -10,7 +10,6 @@ from boomrdbox.models import (
     PlayConf,
     RecordConf,
     RedisConf,
-    StreamItemConf,
     StreamsConf,
     TruncateConf,
 )
@@ -43,30 +42,14 @@ store(_ProdRedisConf, name="prod", group="redis")
 # ---------------------------------------------------------------------------
 store(
     StreamsConf(
-        streams=[
-            StreamItemConf(
-                key="sensor:imu",
-                timestamp_field="receive_ts",
-                timestamp_mode="bypass",
-            ),
-            StreamItemConf(key="sensor:gps"),
-            StreamItemConf(
-                key="sensor:camera",
-                timestamp_field="ts_nano",
-                timestamp_mode="shift",
-            ),
-        ],
+        streams=["sensor:imu", "sensor:gps", "sensor:camera"],
     ),
     name="sensors",
     group="streams",
 )
 store(
     StreamsConf(
-        streams=[
-            StreamItemConf(key="events:user"),
-            StreamItemConf(key="events:system"),
-            StreamItemConf(key="events:audit"),
-        ],
+        streams=["events:user", "events:system", "events:audit"],
     ),
     name="events",
     group="streams",
@@ -89,7 +72,6 @@ PlayConfig = make_config(
     hydra_defaults=[
         "_self_",
         {"redis": "local"},
-        {"streams": "sensors"},
     ],
     bases=(PlayConf,),
 )
