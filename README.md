@@ -1,6 +1,6 @@
 # boomrdbox
 
-Запись и воспроизведение данных из Redis-стримов. Захватывайте сообщения из потоков в компактный msgpack-файл, а затем воспроизводите их с точным таймингом, регулировкой скорости и корректировкой временных меток.
+Запись и воспроизведение данных из Redis-стримов. Захватывайте сообщения из потоков в компактный msgpack-файл, а затем воспроизводите их с точным таймингом и регулировкой скорости.
 
 ## Возможности
 
@@ -45,6 +45,12 @@ boomrdbox record output=recording.msgpack from_beginning=true
 boomrdbox record max_duration=60 max_size_mb=100
 ```
 
+Ротация файла записи по сигналу через Redis SUBSCRIBE:
+
+```bash
+boomrdbox record rotate_key=boomrdbox:rotate
+```
+
 ### Воспроизведение (play)
 
 Воспроизведение записи с оригинальной скоростью:
@@ -57,6 +63,18 @@ boomrdbox play input=recording.msgpack
 
 ```bash
 boomrdbox play input=recording.msgpack speed=2.0 max_delay=10
+```
+
+Исключение определённых стримов из воспроизведения:
+
+```bash
+boomrdbox play input=recording.msgpack 'exclude_streams=[sensor:camera]'
+```
+
+Переименование стримов при воспроизведении:
+
+```bash
+boomrdbox play input=recording.msgpack 'rename_streams={sensor:imu: sensor:imu_replay}'
 ```
 
 ### Конвертация (convert)
@@ -203,16 +221,13 @@ boomrdbox record streams=events            # использовать пресе
 boomrdbox record 'streams.streams=[{key: mystream}]'
 ```
 
-Стримы поддерживают корректировку временных меток при воспроизведении:
+### Подробный вывод
 
-```yaml
-streams:
-  - key: sensor:imu
-    timestamp_field: receive_ts
-    timestamp_mode: bypass      # сохранить оригинальное значение (по умолчанию)
-  - key: sensor:camera
-    timestamp_field: ts_nano
-    timestamp_mode: shift       # сдвинуть к текущему wall-clock времени
+Все Hydra-команды поддерживают флаг `verbose=true` для вывода отладочной информации и прогресс-бара:
+
+```bash
+boomrdbox record verbose=true
+boomrdbox play input=recording.msgpack verbose=true
 ```
 
 ## Docker Compose для разработки
