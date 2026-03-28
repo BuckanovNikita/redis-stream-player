@@ -1,4 +1,4 @@
-"""Interactive TUI for truncating recordings."""
+"""Interactive TUI for truncating recordings and setup wizard."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from textual.containers import Center, Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
 from textual.screen import ModalScreen, Screen
 from textual.widgets import (
+    Button,
     DataTable,
     Footer,
     Input,
@@ -584,4 +585,95 @@ class TruncateApp(App[None]):
         left_ms, right_ms = result
         self._conf.from_id = f"{left_ms}-0"
         self._conf.to_id = f"{right_ms}-0"
+        self.exit()
+
+
+class SetupApp(App[None]):
+    """Interactive TUI for adding a read instance."""
+
+    BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
+        Binding("escape", "quit", "Выход"),
+    ]
+
+    CSS = """
+    #setup-form {
+        padding: 1 2;
+        max-width: 80;
+    }
+    .setup-label {
+        margin: 1 0 0 0;
+    }
+    #save-btn {
+        margin: 2 0 0 0;
+    }
+    """
+
+    def __init__(self, instance_name: str) -> None:
+        super().__init__()
+        self._instance_name = instance_name
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Label(f"Настройка инстанса: {self._instance_name}", classes="setup-label"),
+            Label("Redis Host:", classes="setup-label"),
+            Input(placeholder="10.0.0.5", id="host"),
+            Label("Redis Port:", classes="setup-label"),
+            Input(placeholder="6379", value="6379", id="port"),
+            Label("Redis DB:", classes="setup-label"),
+            Input(placeholder="0", value="0", id="db"),
+            Label("Redis Password (опционально):", classes="setup-label"),
+            Input(placeholder="", password=True, id="password"),
+            Label("SSH Host (опционально):", classes="setup-label"),
+            Input(placeholder="bastion.corp.net", id="ssh-host"),
+            Label("SSH Port:", classes="setup-label"),
+            Input(placeholder="22", value="22", id="ssh-port"),
+            Label("SSH User:", classes="setup-label"),
+            Input(placeholder="deploy", id="ssh-user"),
+            Label("SSH Key File (опционально):", classes="setup-label"),
+            Input(placeholder="~/.ssh/id_rsa", id="ssh-key"),
+            Button("Сохранить", id="save-btn", variant="primary"),
+            id="setup-form",
+        )
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id != "save-btn":
+            return
+        self._save_instance()
+
+    def _save_instance(self) -> None:
+        from boomrdbox.instances import add_instance
+        from boomrdbox.models import ReadInstanceConf, RedisConf, SshTunnelConf
+
+        host_input = self.query_one("#host", Input)
+        if not host_input.value.strip():
+            self.notify("Host обязателен", severity="error")
+            return
+
+        port_val = int(self.query_one("#port", Input).value or "6379")
+        db_val = int(self.query_one("#db", Input).value or "0")
+        password_val = self.query_one("#password", Input).value or None
+
+        ssh_host = self.query_one("#ssh-host", Input).value.strip()
+        ssh_tunnel: SshTunnelConf | None = None
+        if ssh_host:
+            ssh_tunnel = SshTunnelConf(
+                ssh_host=ssh_host,
+                ssh_port=int(self.query_one("#ssh-port", Input).value or "22"),
+                ssh_user=self.query_one("#ssh-user", Input).value.strip(),
+                ssh_key_file=self.query_one("#ssh-key", Input).value.strip() or None,
+            )
+
+        conf = ReadInstanceConf(
+            name=self._instance_name,
+            redis=RedisConf(
+                host=host_input.value.strip(),
+                port=port_val,
+                db=db_val,
+                password=password_val,
+            ),
+            ssh_tunnel=ssh_tunnel,
+        )
+        add_instance(conf)
+        self.notify(f"Инстанс {self._instance_name!r} сохранён")
         self.exit()

@@ -15,6 +15,9 @@ dependencies = [
     "tqdm>=4.66",
     "loguru>=0.7",
     "textual>=1.0,<2.0",
+    "sshtunnel>=0.4",
+    "platformdirs>=4.0",
+    "tomli-w>=1.0",
 ]
 
 [dependency-groups]
@@ -63,11 +66,13 @@ ignore = [
 fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "D", "ANN"]
+"tests/**" = ["S101", "S105", "S106", "D", "ANN", "PT019", "PLC0415"]
 "integration/**" = ["S101", "D", "ANN", "INP001", "T201"]
-"src/boomrdbox/cli.py" = ["PLC0415"]
+"src/boomrdbox/cli.py" = ["PLC0415", "C901"]
 "src/boomrdbox/tools.py" = ["PLC0415"]
-"src/boomrdbox/tui.py" = ["PLC0415", "RUF001", "D107", "FBT001"]
+"src/boomrdbox/io.py" = ["PLC0415"]
+"src/boomrdbox/player.py" = ["PLR0915"]
+"src/boomrdbox/tui.py" = ["PLC0415", "RUF001", "D107", "D102", "FBT001"]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -95,6 +100,10 @@ module = ["textual.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = ["sshtunnel.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
@@ -118,7 +127,7 @@ type = "layers"
 layers = [
     "boomrdbox.cli",
     "boomrdbox._config | boomrdbox.recorder | boomrdbox.player | boomrdbox.tools | boomrdbox.tui",
-    "boomrdbox.io",
+    "boomrdbox.io | boomrdbox.instances",
     "boomrdbox.models",
 ]
 
@@ -128,6 +137,7 @@ type = "forbidden"
 source_modules = ["boomrdbox.models"]
 forbidden_modules = [
     "boomrdbox.io",
+    "boomrdbox.instances",
     "boomrdbox.recorder",
     "boomrdbox.player",
     "boomrdbox.tools",

@@ -162,7 +162,7 @@ class TestEnvVarOverrides:
         assert isinstance(resolved, dict)
         redis = resolved["redis"]
         assert isinstance(redis, dict)
-        assert redis["password"] == "secret"  # noqa: S105
+        assert redis["password"] == "secret"
 
     def test_env_vars_ignored_for_convert(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv("REDIS_HOST", "envhost")

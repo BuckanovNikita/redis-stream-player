@@ -4,8 +4,10 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from boomrdbox.io import RecordReader
-from boomrdbox.models import RecordConf, RedisConf, StreamsConf
+from boomrdbox.models import ReadInstanceConf, RecordConf, RedisConf, StreamsConf
 from boomrdbox.recorder import Recorder
 
 
@@ -107,3 +109,47 @@ class TestRecorder:
         assert "redis" in hydra_record_cfg
         assert "streams" in hydra_record_cfg
         assert "output" in hydra_record_cfg
+
+    @patch("boomrdbox.recorder.create_tunneled_redis")
+    @patch("boomrdbox.recorder.get_instance")
+    def test_record_with_instance(self, mock_get_instance, mock_tunneled, tmp_path):
+        mock_client = MagicMock()
+        mock_tunnel = MagicMock()
+        inst = ReadInstanceConf(
+            name="staging",
+            redis=RedisConf(host="10.0.0.5", port=6379),
+        )
+        mock_get_instance.return_value = inst
+        mock_tunneled.return_value = (mock_client, mock_tunnel)
+
+        call_count = 0
+
+        def xread_side_effect(**_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return [
+                    (
+                        b"test:stream",
+                        [(b"100-0", {b"k": b"v"})],
+                    ),
+                ]
+            recorder._running = False  # noqa: SLF001
+            return None
+
+        mock_client.xread.side_effect = xread_side_effect
+
+        conf = _make_record_conf(tmp_path, instance="staging")
+        recorder = Recorder(conf)
+        recorder.run()
+
+        mock_get_instance.assert_called_once_with("staging")
+        mock_tunneled.assert_called_once_with(inst)
+        mock_tunnel.stop.assert_called_once()
+
+    @patch("boomrdbox.recorder.get_instance", return_value=None)
+    def test_record_with_unknown_instance_raises(self, _mock_get, tmp_path):
+        conf = _make_record_conf(tmp_path, instance="nonexistent")
+        recorder = Recorder(conf)
+        with pytest.raises(ValueError, match="not found"):
+            recorder.run()

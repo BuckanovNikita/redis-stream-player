@@ -4,11 +4,12 @@
 
 ## Возможности
 
-- **Record** — захват сообщений из нескольких Redis-стримов в один msgpack-файл
-- **Play** — воспроизведение записанных сообщений с оригинальным таймингом, регулируемой скоростью и пайплайнингом записи
+- **Record** — захват сообщений из нескольких Redis-стримов в один msgpack-файл (с поддержкой SSH-туннелей через именованные инстансы)
+- **Play** — воспроизведение записанных сообщений с оригинальным таймингом, регулируемой скоростью и пайплайнингом записи (с защитой от записи в недопустимые хосты)
 - **Convert** — экспорт записей в Parquet или CSV для анализа
 - **Truncate** — обрезка записей по диапазону ID сообщений или через интерактивный TUI
 - **Info** — отображение статистики по каждому стриму из файла записи
+- **Setup** — управление именованными инстансами Redis для чтения и списком допустимых хостов для воспроизведения
 
 ## Установка
 
@@ -105,6 +106,71 @@ boomrdbox truncate input=recording.msgpack output=slice.msgpack interactive=true
 ```bash
 boomrdbox info input=recording.msgpack
 ```
+
+### Настройка инстансов для чтения (setup)
+
+Команда `setup` позволяет сохранять именованные подключения к Redis для операций чтения (`record`). Инстансы хранятся в `~/.config/boomrdbox/config.toml`.
+
+#### Добавление инстанса
+
+```bash
+boomrdbox setup add staging --host 10.0.0.5 --port 6379 --db 0
+```
+
+С SSH-туннелем (для доступа к Redis за бастион-хостом):
+
+```bash
+boomrdbox setup add prod --host redis-internal --port 6379 \
+    --ssh-host bastion.corp.net --ssh-port 22 --ssh-user deploy --ssh-key ~/.ssh/id_ed25519
+```
+
+Интерактивный режим с TUI-формой:
+
+```bash
+boomrdbox setup add prod --interactive
+```
+
+#### Просмотр и удаление инстансов
+
+```bash
+boomrdbox setup list
+boomrdbox setup remove staging
+```
+
+#### Использование инстанса для записи
+
+```bash
+boomrdbox record instance=prod output=recording.msgpack
+```
+
+При наличии SSH-туннеля он автоматически устанавливается перед подключением к Redis и закрывается по завершении записи.
+
+### Защита play-команды
+
+Команда `play` записывает данные в Redis и поэтому ограничена списком допустимых хостов. По умолчанию разрешён только хост `redis` (имя сервиса Docker в devcontainer-сети).
+
+Попытка воспроизведения в недопустимый хост приведёт к ошибке:
+
+```
+UnsafePlayTargetError: Play command refused: host 'prod-redis' is not in the allowed hosts list ['redis'].
+```
+
+#### Управление допустимыми хостами
+
+```bash
+boomrdbox setup play-hosts list                 # посмотреть текущий список
+boomrdbox setup play-hosts add redis-dev        # добавить хост
+boomrdbox setup play-hosts remove redis-dev     # удалить хост
+```
+
+Список хранится в `~/.config/boomrdbox/config.toml` в секции `[play]`:
+
+```toml
+[play]
+allowed_hosts = ["redis"]
+```
+
+Инстансы, созданные через `setup add`, предназначены **исключительно для чтения** и никогда не используются командой `play`.
 
 ## Конфигурация
 

@@ -13,6 +13,7 @@ from loguru import logger
 
 from boomrdbox.models import (
     MessageID,
+    ReadInstanceConf,
     RedisConf,
     StreamConfig,
     StreamItemConf,
@@ -33,6 +34,47 @@ def create_redis(conf: RedisConf) -> redis.Redis[bytes]:
         password=conf.password,
         decode_responses=False,
     )
+
+
+def create_tunneled_redis(
+    conf: ReadInstanceConf,
+) -> tuple[redis.Redis[bytes], Any]:
+    """Create a Redis client, optionally through an SSH tunnel.
+
+    Returns (redis_client, tunnel_or_none). The caller must close the tunnel
+    when done (call ``tunnel.stop()``).
+    """
+    if conf.ssh_tunnel is not None and conf.ssh_tunnel.ssh_host:
+        from sshtunnel import SSHTunnelForwarder
+
+        ssh_kwargs: dict[str, Any] = {
+            "ssh_username": conf.ssh_tunnel.ssh_user or None,
+            "remote_bind_address": (conf.redis.host, conf.redis.port),
+        }
+        if conf.ssh_tunnel.ssh_key_file:
+            ssh_kwargs["ssh_pkey"] = conf.ssh_tunnel.ssh_key_file
+        if conf.ssh_tunnel.ssh_password:
+            ssh_kwargs["ssh_password"] = conf.ssh_tunnel.ssh_password
+
+        tunnel = SSHTunnelForwarder(
+            (conf.ssh_tunnel.ssh_host, conf.ssh_tunnel.ssh_port),
+            **ssh_kwargs,
+        )
+        tunnel.start()
+        logger.info(
+            f"SSH tunnel established: localhost:{tunnel.local_bind_port}"
+            f" -> {conf.redis.host}:{conf.redis.port}"
+            f" via {conf.ssh_tunnel.ssh_host}:{conf.ssh_tunnel.ssh_port}",
+        )
+        client = redis.Redis(
+            host="127.0.0.1",
+            port=tunnel.local_bind_port,
+            db=conf.redis.db,
+            password=conf.redis.password,
+            decode_responses=False,
+        )
+        return client, tunnel
+    return create_redis(conf.redis), None
 
 
 def parse_stream_configs(raw_streams: list[Any]) -> list[StreamConfig]:

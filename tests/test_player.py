@@ -14,8 +14,9 @@ from boomrdbox.models import (
     RedisConf,
     StreamRecord,
     StreamsConf,
+    UnsafePlayTargetError,
 )
-from boomrdbox.player import Player, _format_ms
+from boomrdbox.player import Player, _format_ms, validate_play_target
 
 _DEFAULT_PLAY_STREAMS: list[Any] = [
     {
@@ -71,8 +72,11 @@ class TestPlayer:
         with pytest.raises(ValidationError):
             _make_play_conf(path, speed=-1.0)
 
+    @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
-    def test_play_empty_file(self, mock_create_redis: Any, tmp_path: Path) -> None:
+    def test_play_empty_file(
+        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
+    ) -> None:
         mock_client = MagicMock()
         mock_pipe = MagicMock()
         mock_client.pipeline.return_value = mock_pipe
@@ -87,8 +91,11 @@ class TestPlayer:
         player.run()
         mock_pipe.xadd.assert_not_called()
 
+    @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
-    def test_play_records(self, mock_create_redis: Any, sample_msgpack: Path) -> None:
+    def test_play_records(
+        self, mock_create_redis: Any, _mock_hosts: Any, sample_msgpack: Path
+    ) -> None:
         mock_client = MagicMock()
         mock_pipe = MagicMock()
         mock_client.pipeline.return_value = mock_pipe
@@ -101,9 +108,10 @@ class TestPlayer:
 
         assert mock_pipe.xadd.call_count == 5
 
+    @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
     def test_play_sorts_by_message_id(
-        self, mock_create_redis: Any, tmp_path: Path
+        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
     ) -> None:
         """Records are replayed in MessageID order within batches."""
         mock_client = MagicMock()
@@ -132,10 +140,15 @@ class TestPlayer:
         assert calls[1].args[0] == "b"  # ms=200
         assert calls[2].args[0] == "a"  # ms=300
 
+    @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
     @patch("boomrdbox.player.time")
     def test_timestamp_shift(
-        self, mock_time: Any, mock_create_redis: Any, tmp_path: Path
+        self,
+        mock_time: Any,
+        mock_create_redis: Any,
+        _mock_hosts: Any,
+        tmp_path: Path,
     ) -> None:
         mock_client = MagicMock()
         mock_pipe = MagicMock()
@@ -162,9 +175,10 @@ class TestPlayer:
         fields = call.args[1]
         assert "ts_nano" in fields
 
+    @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
     def test_producer_consumer_produces_correct_sequence(
-        self, mock_create_redis: Any, tmp_path: Path
+        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
     ) -> None:
         """Producer-consumer threading produces the same xadd sequence."""
         mock_client = MagicMock()
@@ -201,9 +215,10 @@ class TestPlayer:
         stream_names = [c.args[0] for c in calls]
         assert stream_names == ["s1", "s1", "s2", "s2", "s1"]
 
+    @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
     def test_multiple_batches_with_prefetch(
-        self, mock_create_redis: Any, tmp_path: Path
+        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
     ) -> None:
         """Multiple batches are produced and consumed correctly."""
         mock_client = MagicMock()
@@ -239,3 +254,27 @@ class TestPlayer:
         assert "streams" in hydra_play_cfg
         assert "speed" in hydra_play_cfg
         assert "prefetch" in hydra_play_cfg
+
+
+class TestPlayTargetValidation:
+    def test_rejects_non_whitelisted_host(self) -> None:
+        with pytest.raises(UnsafePlayTargetError):
+            validate_play_target("prod-redis", ["redis"])
+
+    def test_allows_whitelisted_host(self) -> None:
+        validate_play_target("redis", ["redis"])
+
+    def test_rejects_localhost_when_not_whitelisted(self) -> None:
+        with pytest.raises(UnsafePlayTargetError):
+            validate_play_target("localhost", ["redis"])
+
+    def test_custom_whitelist(self) -> None:
+        validate_play_target("redis-dev", ["redis", "redis-dev"])
+
+    def test_rejects_ip_address(self) -> None:
+        with pytest.raises(UnsafePlayTargetError):
+            validate_play_target("10.0.0.5", ["redis"])
+
+    def test_rejects_fqdn(self) -> None:
+        with pytest.raises(UnsafePlayTargetError):
+            validate_play_target("prod.redis.corp.net", ["redis"])

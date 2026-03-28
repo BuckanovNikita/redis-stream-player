@@ -13,6 +13,7 @@ import msgpack
 from loguru import logger
 from tqdm import tqdm
 
+from boomrdbox.instances import load_allowed_play_hosts
 from boomrdbox.io import (
     RecordReader,
     create_redis,
@@ -24,6 +25,7 @@ from boomrdbox.models import (
     StreamConfig,
     StreamRecord,
     TimestampMode,
+    UnsafePlayTargetError,
 )
 
 if TYPE_CHECKING:
@@ -32,6 +34,18 @@ if TYPE_CHECKING:
     import redis as redis_lib
 
 _NS_PER_MS = 1_000_000
+
+
+def validate_play_target(host: str, allowed_hosts: list[str]) -> None:
+    """Raise UnsafePlayTargetError if the host is not in the whitelist."""
+    if host not in allowed_hosts:
+        allowed = ", ".join(repr(h) for h in allowed_hosts)
+        msg = (
+            f"Play command refused: host {host!r} is not in the allowed"
+            f" hosts list [{allowed}]. Configure allowed hosts via"
+            f" 'boomrdbox setup play-hosts add <hostname>'."
+        )
+        raise UnsafePlayTargetError(msg)
 
 
 def _format_ms(ms: int) -> str:
@@ -192,6 +206,9 @@ class Player:
 
     def run(self) -> None:
         """Run the player, replaying all records from the file."""
+        allowed_hosts = load_allowed_play_hosts()
+        validate_play_target(self._conf.redis.host, allowed_hosts)
+
         self._running = True
         self._stop_event.clear()
 

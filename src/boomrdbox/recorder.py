@@ -11,9 +11,11 @@ import redis as redis_lib
 from loguru import logger
 from tqdm import tqdm
 
+from boomrdbox.instances import get_instance
 from boomrdbox.io import (
     RecordWriter,
     create_redis,
+    create_tunneled_redis,
     parse_stream_configs,
 )
 from boomrdbox.models import MessageID, RecordConf, StreamRecord
@@ -35,6 +37,7 @@ class Recorder:
         self._redis: redis_lib.Redis[bytes] | None = None
         self._sub_thread: threading.Thread | None = None
         self._client: redis_lib.Redis[bytes] | None = None
+        self._tunnel: Any = None
         self._progress: tqdm[Any] | None = None
         logger.debug(
             f"Recorder: output={conf.output},"
@@ -90,11 +93,20 @@ class Recorder:
         signal.signal(signal.SIGINT, self._handle_signal)
         signal.signal(signal.SIGTERM, self._handle_signal)
 
-        self._client = create_redis(self._conf.redis)
+        if self._conf.instance is not None:
+            inst = get_instance(self._conf.instance)
+            if inst is None:
+                msg = f"Read instance {self._conf.instance!r} not found in config"
+                raise ValueError(msg)
+            self._client, self._tunnel = create_tunneled_redis(inst)
+            logger.info(f"Using read instance {self._conf.instance!r}")
+        else:
+            self._client = create_redis(self._conf.redis)
         self._client.ping()
         host = self._conf.redis.host
         port = self._conf.redis.port
-        logger.info(f"Connected to Redis at {host}:{port}")
+        if self._conf.instance is None:
+            logger.info(f"Connected to Redis at {host}:{port}")
         self._redis = self._client
 
         self._subscribe_rotation(self._client)
@@ -133,6 +145,9 @@ class Recorder:
                 signal.signal(signal.SIGTERM, original_sigterm)
                 self._running = False
                 self._stop_event.set()
+                if self._tunnel is not None:
+                    self._tunnel.stop()
+                    self._tunnel = None
 
         total_elapsed = time.monotonic() - start_time
         logger.info(

@@ -24,6 +24,10 @@ class InvalidMessageIDError(ValueError):
     """Raised when a Redis message ID string cannot be parsed."""
 
 
+class UnsafePlayTargetError(RuntimeError):
+    """Raised when the play command targets a non-whitelisted Redis host."""
+
+
 @dataclass(frozen=True, order=True)
 class MessageID:
     """Parsed Redis message ID with ordering support.
@@ -94,6 +98,30 @@ class RedisConf:
     password: str | None = None
 
 
+@pydantic_dataclass
+class SshTunnelConf:
+    """SSH tunnel configuration for reaching remote Redis."""
+
+    ssh_host: str = ""
+    ssh_port: Annotated[int, Field(ge=1, le=65535)] = 22
+    ssh_user: str = ""
+    ssh_key_file: str | None = None
+    ssh_password: str | None = None
+
+
+@pydantic_dataclass
+class ReadInstanceConf:
+    """A named Redis read-instance with optional SSH tunnel.
+
+    Used by record command for reading from remote Redis.
+    Must NEVER be used by the play command.
+    """
+
+    name: str = ""
+    redis: RedisConf = field(default_factory=RedisConf)
+    ssh_tunnel: SshTunnelConf | None = None
+
+
 _VALID_TIMESTAMP_MODES = frozenset({"bypass", "shift"})
 _VALID_CONVERT_FORMATS = frozenset({"parquet", "csv"})
 
@@ -130,6 +158,7 @@ class RecordConf:
     redis: RedisConf = field(default_factory=RedisConf)
     streams: StreamsConf = field(default_factory=StreamsConf)
     output: str = "recording.msgpack"
+    instance: str | None = None
     from_beginning: bool = False
     rotate_key: str | None = None
     batch_size: Annotated[int, Field(gt=0)] = 100
