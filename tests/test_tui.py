@@ -13,7 +13,9 @@ from boomrdbox.tui import (
     TruncateApp,
     estimate_selected_messages,
     ms_to_hms,
+    ms_to_utc,
     parse_hms,
+    parse_utc,
     scan_timeline,
 )
 
@@ -83,6 +85,54 @@ class TestParseHms:
     def test_roundtrip(self):
         original_ms = 1 * 3_600_000 + 23 * 60_000 + 45_678
         assert parse_hms(ms_to_hms(original_ms)) == original_ms
+
+
+class TestMsToUtc:
+    def test_known_timestamp(self):
+        assert ms_to_utc(1709312000000) == "2024-03-01 16:53:20.000"
+
+    def test_with_millis(self):
+        assert ms_to_utc(1709312000123) == "2024-03-01 16:53:20.123"
+
+    def test_epoch_zero(self):
+        assert ms_to_utc(0) == "1970-01-01 00:00:00.000"
+
+    def test_roundtrip_with_parse_utc(self):
+        ms = 1709312000456
+        text = ms_to_utc(ms)
+        assert parse_utc(text, 0, 2_000_000_000_000) == ms
+
+
+class TestParseUtc:
+    def test_full_format(self):
+        result = parse_utc("2024-03-01 16:53:20.000", 0, 2_000_000_000_000)
+        assert result == 1709312000000
+
+    def test_full_format_with_millis(self):
+        result = parse_utc("2024-03-01 16:53:20.123", 0, 2_000_000_000_000)
+        assert result == 1709312000123
+
+    def test_time_only_infers_date(self):
+        first = 1709312000000
+        last = 1709312060000
+        result = parse_utc("16:53:30.000", first, last)
+        assert result == 1709312010000
+
+    def test_time_only_midnight_crossing(self):
+        first = 1709337600000 - 600_000
+        last = 1709337600000 + 600_000
+        result = parse_utc("00:05:00.000", first, last)
+        assert result == 1709337600000 + 300_000
+
+    def test_empty_string(self):
+        assert parse_utc("", 0, 1000) is None
+
+    def test_invalid_format(self):
+        assert parse_utc("not-a-time", 0, 1000) is None
+
+    def test_date_only(self):
+        result = parse_utc("2024-03-01", 0, 2_000_000_000_000)
+        assert result == 1709251200000
 
 
 class TestEstimateSelectedMessages:

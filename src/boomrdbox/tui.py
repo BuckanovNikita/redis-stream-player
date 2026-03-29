@@ -56,6 +56,14 @@ def ms_to_hms(ms_offset: int) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{millis:03d}"
 
 
+def ms_to_utc(ms: int) -> str:
+    """Format Unix millisecond timestamp as ``YYYY-MM-DD HH:MM:SS.mmm`` UTC."""
+    from datetime import UTC, datetime
+
+    dt = datetime.fromtimestamp(ms / 1000, tz=UTC)
+    return dt.strftime("%Y-%m-%d %H:%M:%S.") + f"{ms % 1000:03d}"
+
+
 def parse_hms(text: str) -> int | None:
     """Parse ``HH:MM:SS``, ``HH:MM:SS.mmm``, ``MM:SS``, or ``SS`` into ms.
 
@@ -97,6 +105,56 @@ def parse_hms(text: str) -> int | None:
         return None
 
     return (hours * 3600 + minutes * 60 + seconds) * 1000 + millis
+
+
+def parse_utc(
+    text: str,
+    global_first_ms: int,
+    global_last_ms: int,
+) -> int | None:
+    """Parse UTC time string into absolute Unix milliseconds.
+
+    Accepts two formats:
+    - Full: ``YYYY-MM-DD HH:MM:SS.mmm``
+    - Time-only: ``HH:MM:SS.mmm`` / ``MM:SS`` / ``SS``
+      (date inferred from recording range, handles midnight crossing)
+
+    Returns ``None`` if the format is invalid.
+    """
+    from datetime import UTC, datetime
+
+    text = text.strip()
+    if not text:
+        return None
+
+    has_date = len(text) >= 10 and text[4:5] == "-" and text[7:8] == "-"
+    if has_date:
+        date_str = text[:10]
+        time_str = text[11:].strip() if len(text) > 10 else "00:00:00"
+        time_ms = parse_hms(time_str)
+        if time_ms is None:
+            return None
+        try:
+            dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=UTC)
+        except ValueError:
+            return None
+        return int(dt.timestamp() * 1000) + time_ms
+
+    time_ms = parse_hms(text)
+    if time_ms is None:
+        return None
+
+    base_dt = datetime.fromtimestamp(global_first_ms / 1000, tz=UTC)
+    base_epoch = int(
+        base_dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000
+    )
+    result = base_epoch + time_ms
+    for day_offset in (0, 1, -1):
+        candidate = base_epoch + day_offset * 86_400_000 + time_ms
+        if global_first_ms <= candidate <= global_last_ms:
+            result = candidate
+            break
+    return result
 
 
 def estimate_selected_messages(
@@ -236,30 +294,42 @@ class ConfirmDialog(ModalScreen[bool]):
 
 
 class TimeInputDialog(ModalScreen[int | None]):
-    """Modal dialog for manual time entry."""
+    """Modal dialog for manual UTC time entry."""
 
-    def __init__(self, label: str, current_hms: str) -> None:
+    def __init__(
+        self,
+        label: str,
+        current_utc: str,
+        global_first_ms: int,
+        global_last_ms: int,
+    ) -> None:
         super().__init__()
         self._label = label
-        self._current_hms = current_hms
+        self._current_utc = current_utc
+        self._global_first_ms = global_first_ms
+        self._global_last_ms = global_last_ms
 
     def compose(self) -> ComposeResult:
         """Build the time input dialog layout."""
         with Vertical(id="time-input-dialog"):
             yield Label(
-                f"{self._label} (HH:MM:SS.mmm / MM:SS / SS):",
+                f"{self._label} (YYYY-MM-DD HH:MM:SS.mmm / HH:MM:SS / SS) UTC:",
                 id="time-input-label",
             )
             yield Input(
-                value=self._current_hms,
-                placeholder="00:00:00.000",
+                value=self._current_utc,
+                placeholder="2024-01-01 00:00:00.000",
                 id="time-input-field",
             )
             yield Label("[Enter] Применить  [Esc] Отмена", id="time-input-hint")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter in the input field."""
-        parsed = parse_hms(event.value)
+        parsed = parse_utc(
+            event.value,
+            self._global_first_ms,
+            self._global_last_ms,
+        )
         if parsed is not None:
             self.dismiss(parsed)
         else:
@@ -327,12 +397,17 @@ class TimelineScreen(Screen[tuple[int, int] | None]):
         """Build the timeline screen layout."""
         meta = self._metadata
         duration = ms_to_hms(meta.global_last_ms - meta.global_first_ms)
+        period = (
+            f"Период: {ms_to_utc(meta.global_first_ms)}"
+            f" — {ms_to_utc(meta.global_last_ms)} UTC"
+        )
         with VerticalScroll(id="timeline-container"):
             yield Label(
                 f"Файл: {meta.file_path} ({meta.file_size:,} байт)",
                 id="file-info",
             )
             yield Label(f"Длительность: {duration}", id="duration-info")
+            yield Label(period, id="period-info")
             yield Label(
                 f"Сообщений: {meta.total_messages:,}",
                 id="messages-info",
@@ -340,13 +415,12 @@ class TimelineScreen(Screen[tuple[int, int] | None]):
 
             table: DataTable[str] = DataTable(id="streams-table")
             table.add_columns("Стрим", "Сообщ.", "Начало", "Конец")
-            base = meta.global_first_ms
             for stream in meta.streams:
                 table.add_row(
                     stream.name,
                     f"{stream.count:,}",
-                    ms_to_hms(stream.first_ms - base),
-                    ms_to_hms(stream.last_ms - base),
+                    ms_to_utc(stream.first_ms),
+                    ms_to_utc(stream.last_ms),
                 )
             yield table
 
@@ -368,7 +442,6 @@ class TimelineScreen(Screen[tuple[int, int] | None]):
         self._update_display()
 
     def _update_display(self) -> None:
-        base = self._metadata.global_first_ms
         left_label = self.query_one("#left-marker", Label)
         right_label = self.query_one("#right-marker", Label)
         selection_label = self.query_one("#selection-info", Label)
@@ -377,10 +450,8 @@ class TimelineScreen(Screen[tuple[int, int] | None]):
         active_indicator_l = " ◄" if self.active_point == "left" else ""
         active_indicator_r = " ◄" if self.active_point == "right" else ""
 
-        left_label.update(f"  L: {ms_to_hms(self.left_ms - base)}{active_indicator_l}")
-        right_label.update(
-            f"  R: {ms_to_hms(self.right_ms - base)}{active_indicator_r}"
-        )
+        left_label.update(f"  L: {ms_to_utc(self.left_ms)}{active_indicator_l}")
+        right_label.update(f"  R: {ms_to_utc(self.right_ms)}{active_indicator_r}")
 
         selected_duration = ms_to_hms(self.right_ms - self.left_ms)
         est_messages = estimate_selected_messages(
@@ -444,33 +515,35 @@ class TimelineScreen(Screen[tuple[int, int] | None]):
 
     def action_input_time(self) -> None:
         """Open manual time entry dialog for the active marker."""
-        base = self._metadata.global_first_ms
         if self.active_point == "left":
-            current_ms = self.left_ms - base
+            current_ms = self.left_ms
             label = "L (левая граница)"
         else:
-            current_ms = self.right_ms - base
+            current_ms = self.right_ms
             label = "R (правая граница)"
         self.app.push_screen(
-            TimeInputDialog(label, ms_to_hms(current_ms)),
+            TimeInputDialog(
+                label,
+                ms_to_utc(current_ms),
+                self._metadata.global_first_ms,
+                self._metadata.global_last_ms,
+            ),
             self._on_time_input,
         )
 
     def _on_time_input(self, result: int | None) -> None:
         if result is None:
             return
-        absolute_ms = self._metadata.global_first_ms + result
         if self.active_point == "left":
-            clamped = self._clamp(absolute_ms)
+            clamped = self._clamp(result)
             self.left_ms = min(clamped, self.right_ms)
         else:
-            clamped = self._clamp(absolute_ms)
+            clamped = self._clamp(result)
             self.right_ms = max(clamped, self.left_ms)
         self._update_display()
 
     def action_confirm(self) -> None:
         """Show confirmation dialog."""
-        base = self._metadata.global_first_ms
         est = estimate_selected_messages(
             self._metadata,
             self.left_ms,
@@ -478,8 +551,8 @@ class TimelineScreen(Screen[tuple[int, int] | None]):
         )
         msg = (
             f"Обрезать запись?\n\n"
-            f"Диапазон: {ms_to_hms(self.left_ms - base)}"
-            f" — {ms_to_hms(self.right_ms - base)}\n"
+            f"Диапазон: {ms_to_utc(self.left_ms)}"
+            f" — {ms_to_utc(self.right_ms)} UTC\n"
             f"~{est:,} сообщений"
         )
         self.app.push_screen(ConfirmDialog(msg), self._on_confirm)
@@ -528,7 +601,7 @@ class TruncateApp(App[None]):
     }
     #confirm-dialog {
         align: center middle;
-        width: 60;
+        width: 80;
         height: auto;
         border: thick $accent;
         padding: 1 2;
@@ -546,7 +619,7 @@ class TruncateApp(App[None]):
     }
     #time-input-dialog {
         align: center middle;
-        width: 50;
+        width: 70;
         height: auto;
         border: thick $accent;
         padding: 1 2;
