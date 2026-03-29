@@ -191,7 +191,7 @@ class Player:
             total=0,
             desc="Playing",
             bar_format="{desc}: {postfix} [{bar:30}] {percentage:3.0f}%",
-            disable=not self._conf.verbose,
+            disable=False,
         )
         self._progress.set_postfix_str("--.--.---- --:--:-- / --.--.---- --:--:--")
 
