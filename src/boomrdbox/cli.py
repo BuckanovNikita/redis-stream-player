@@ -208,7 +208,10 @@ def _setup_remove(ns: argparse.Namespace) -> None:
     from boomrdbox.instances import get_instance, remove_instance
 
     if get_instance(ns.name) is None:
-        logger.error(f"Instance {ns.name!r} not found")
+        logger.error(
+            f"Instance {ns.name!r} not found."
+            " Run 'boomrdbox setup list' to see configured instances.",
+        )
         sys.exit(1)
     remove_instance(ns.name)
     logger.info(f"Instance {ns.name!r} removed")

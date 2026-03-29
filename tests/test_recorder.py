@@ -1,12 +1,14 @@
 """Tests for the Recorder."""
 
+import signal
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+import redis as redis_lib
 
-from boomrdbox.io import RecordReader
+from boomrdbox.io import RecordReader, RecordWriter
 from boomrdbox.models import ReadInstanceConf, RecordConf, RedisConf, StreamsConf
 from boomrdbox.recorder import Recorder
 
@@ -153,3 +155,155 @@ class TestRecorder:
         recorder = Recorder(conf)
         with pytest.raises(ValueError, match="not found"):
             recorder.run()
+
+
+class TestRecorderSignalHandling:
+    def test_signal_when_not_running(self, tmp_path):
+        conf = _make_record_conf(tmp_path)
+        recorder = Recorder(conf)
+        recorder._running = False  # noqa: SLF001
+        with pytest.raises(KeyboardInterrupt):
+            recorder._handle_signal(signal.SIGINT, None)  # noqa: SLF001
+
+    def test_signal_when_running(self, tmp_path):
+        conf = _make_record_conf(tmp_path)
+        recorder = Recorder(conf)
+        recorder._running = True  # noqa: SLF001
+        recorder._handle_signal(signal.SIGINT, None)  # noqa: SLF001
+        assert recorder._running is False  # noqa: SLF001
+        assert recorder._stop_event.is_set()  # noqa: SLF001
+
+
+class TestProcessXreadResult:
+    def _make_recorder(self, tmp_path: Path) -> Recorder:
+        conf = _make_record_conf(tmp_path)
+        return Recorder(conf)
+
+    def test_decode_error_on_stream_name(self, tmp_path):
+        recorder = self._make_recorder(tmp_path)
+        result = [
+            (b"\xff\xfe", [(b"100-0", {b"k": b"v"})]),
+        ]
+        stream_keys = {"test:stream": None}
+        warned: set[str] = set()
+        last_ids = {"test:stream": "0-0"}
+        with RecordWriter(tmp_path / "out.msgpack") as writer:
+            count = recorder._process_xread_result(  # noqa: SLF001
+                result,
+                stream_keys,
+                warned,
+                last_ids,
+                writer,
+            )
+        assert count == 0
+
+    def test_unknown_stream_warns_once(self, tmp_path):
+        recorder = self._make_recorder(tmp_path)
+        result = [
+            (b"unknown:stream", [(b"100-0", {b"k": b"v"})]),
+        ]
+        stream_keys = {"test:stream": None}
+        warned: set[str] = set()
+        last_ids = {"test:stream": "0-0"}
+        with RecordWriter(tmp_path / "out.msgpack") as writer:
+            count = recorder._process_xread_result(  # noqa: SLF001
+                result,
+                stream_keys,
+                warned,
+                last_ids,
+                writer,
+            )
+        assert count == 0
+        assert "unknown:stream" in warned
+
+    def test_msg_id_decode_error(self, tmp_path):
+        recorder = self._make_recorder(tmp_path)
+        result = [
+            (b"test:stream", [(b"\xff\xfe", {b"k": b"v"})]),
+        ]
+        stream_keys = {"test:stream": None}
+        warned: set[str] = set()
+        last_ids = {"test:stream": "0-0"}
+        with RecordWriter(tmp_path / "out.msgpack") as writer:
+            count = recorder._process_xread_result(  # noqa: SLF001
+                result,
+                stream_keys,
+                warned,
+                last_ids,
+                writer,
+            )
+        assert count == 0
+
+    def test_field_decode_error(self, tmp_path):
+        recorder = self._make_recorder(tmp_path)
+        bad_fields = MagicMock()
+        bad_fields.items.side_effect = UnicodeDecodeError(
+            "utf-8",
+            b"",
+            0,
+            1,
+            "bad",
+        )
+        result: Any = [
+            (b"test:stream", [(b"100-0", bad_fields)]),
+        ]
+        stream_keys = {"test:stream": None}
+        warned: set[str] = set()
+        last_ids = {"test:stream": "0-0"}
+        with RecordWriter(tmp_path / "out.msgpack") as writer:
+            count = recorder._process_xread_result(  # noqa: SLF001
+                result,
+                stream_keys,
+                warned,
+                last_ids,
+                writer,
+            )
+        assert count == 0
+
+
+class TestMaybeRotate:
+    @patch("boomrdbox.recorder.create_redis")
+    def test_rotate_flag_triggers_rotation(self, mock_create_redis, tmp_path):
+        mock_client = MagicMock()
+        mock_create_redis.return_value = mock_client
+
+        call_count = 0
+
+        def xread_side_effect(**_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                recorder._rotate_flag.set()  # noqa: SLF001
+                return [
+                    (b"test:stream", [(b"100-0", {b"k": b"v"})]),
+                ]
+            recorder._running = False  # noqa: SLF001
+            return None
+
+        mock_client.xread.side_effect = xread_side_effect
+
+        conf = _make_record_conf(tmp_path)
+        recorder = Recorder(conf)
+        recorder.run()
+
+
+class TestXreadErrorRecovery:
+    @patch("boomrdbox.recorder.create_redis")
+    def test_xread_redis_error_continues(self, mock_create_redis, tmp_path):
+        mock_client = MagicMock()
+        mock_create_redis.return_value = mock_client
+
+        call_count = 0
+
+        def xread_side_effect(**_kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise redis_lib.exceptions.RedisError("connection lost")
+            recorder._running = False  # noqa: SLF001
+
+        mock_client.xread.side_effect = xread_side_effect
+
+        conf = _make_record_conf(tmp_path)
+        recorder = Recorder(conf)
+        recorder.run()

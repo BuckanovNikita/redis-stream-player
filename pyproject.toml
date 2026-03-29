@@ -15,9 +15,7 @@ dependencies = [
     "tqdm>=4.66",
     "loguru>=0.7",
     "textual>=1.0,<2.0",
-    "sshtunnel>=0.4",
     "platformdirs>=4.0",
-    "tomli-w>=1.0",
 ]
 
 [dependency-groups]
@@ -70,7 +68,7 @@ fixable = ["ALL"]
 "integration/**" = ["S101", "D", "ANN", "INP001", "T201"]
 "src/boomrdbox/cli.py" = ["PLC0415", "C901"]
 "src/boomrdbox/tools.py" = ["PLC0415"]
-"src/boomrdbox/io.py" = ["PLC0415"]
+"src/boomrdbox/io.py" = ["S603"]
 "src/boomrdbox/player.py" = ["PLR0915"]
 "src/boomrdbox/tui.py" = ["PLC0415", "RUF001", "D107", "D102", "FBT001"]
 
@@ -100,10 +98,6 @@ module = ["textual.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["sshtunnel.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
@@ -111,7 +105,7 @@ disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short -n auto --cov=boomrdbox --cov-report=term-missing"
+addopts = "-v --tb=short -n auto --cov=boomrdbox --cov-report=term-missing --cov-fail-under=80"
 markers = ["integration: integration tests requiring Docker Redis"]
 
 [tool.vulture]

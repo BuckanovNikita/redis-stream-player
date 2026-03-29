@@ -7,11 +7,62 @@ from pathlib import Path
 from typing import Any
 
 import platformdirs
-import tomli_w
 
 from boomrdbox.models import ReadInstanceConf, RedisConf, SshTunnelConf
 
 _DEFAULT_PLAY_HOSTS: list[str] = ["redis"]
+
+
+def _toml_value(v: object) -> str:
+    """Serialize a single value to TOML literal."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, str):
+        escaped = v.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    if isinstance(v, list):
+        items = ", ".join(_toml_value(i) for i in v)
+        return f"[{items}]"
+    msg = f"Unsupported TOML value type: {type(v)}"
+    raise TypeError(msg)
+
+
+def _dumps_toml(data: dict[str, Any], prefix: str = "") -> str:
+    """Serialize a nested dict to TOML string.
+
+    Recursively handles arbitrarily nested tables as used by boomrdbox config.
+    """
+    lines: list[str] = []
+    tables: list[tuple[str, dict[str, Any]]] = []
+
+    for key, val in data.items():
+        if isinstance(val, dict):
+            tables.append((key, val))
+        else:
+            lines.append(f"{key} = {_toml_value(val)}")
+
+    for table_key, table_val in tables:
+        full_key = f"{prefix}{table_key}" if prefix else table_key
+        nested: list[tuple[str, dict[str, Any]]] = []
+        scalar_lines: list[str] = []
+        for k, v in table_val.items():
+            if isinstance(v, dict):
+                nested.append((k, v))
+            else:
+                scalar_lines.append(f"{k} = {_toml_value(v)}")
+        if scalar_lines:
+            lines.append(f"\n[{full_key}]")
+            lines.extend(scalar_lines)
+        for nk, nv in nested:
+            sub = _dumps_toml(nv, prefix=f"{full_key}.{nk}.")
+            lines.append(sub)
+
+    result = "\n".join(lines)
+    if not prefix:
+        result += "\n"
+    return result
 
 
 def get_config_path() -> Path:
@@ -32,7 +83,7 @@ def save_config(data: dict[str, Any]) -> None:
     """Write config data to the TOML file, creating dirs if needed."""
     path = get_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(tomli_w.dumps(data).encode())
+    path.write_text(_dumps_toml(data), encoding="utf-8")
 
 
 def _parse_instance(name: str, raw: dict[str, Any]) -> ReadInstanceConf:

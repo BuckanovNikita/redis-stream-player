@@ -97,7 +97,10 @@ class Recorder:
         if self._conf.instance is not None:
             inst = get_instance(self._conf.instance)
             if inst is None:
-                msg = f"Read instance {self._conf.instance!r} not found in config"
+                msg = (
+                    f"Read instance {self._conf.instance!r} not found in config."
+                    " Run 'boomrdbox setup list' to see configured instances."
+                )
                 raise ValueError(msg)
             self._client, self._tunnel = create_tunneled_redis(inst)
             logger.info(f"Using read instance {self._conf.instance!r}")
@@ -147,7 +150,10 @@ class Recorder:
                 self._running = False
                 self._stop_event.set()
                 if self._tunnel is not None:
-                    self._tunnel.stop()
+                    try:
+                        self._tunnel.stop()
+                    except Exception:  # noqa: BLE001
+                        logger.debug("Failed to stop SSH tunnel cleanly")
                     self._tunnel = None
 
         total_elapsed = time.monotonic() - start_time

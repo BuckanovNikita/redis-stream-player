@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import os
+import socket
+import subprocess
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
@@ -35,6 +38,43 @@ def create_redis(conf: RedisConf) -> redis.Redis[bytes]:
     )
 
 
+def _find_free_port() -> int:
+    """Find an available local TCP port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        port: int = s.getsockname()[1]
+        return port
+
+
+class SshTunnel:
+    """SSH tunnel via subprocess running ``ssh -L``."""
+
+    def __init__(self, proc: subprocess.Popen[bytes], local_port: int) -> None:
+        """Initialize with tunnel subprocess and local port."""
+        self._proc = proc
+        self.local_bind_port = local_port
+
+    def stop(self) -> None:
+        """Terminate the SSH tunnel process."""
+        self._proc.terminate()
+        try:
+            self._proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self._proc.kill()
+
+
+def _wait_for_port(port: int, timeout: float = 10.0) -> None:
+    """Wait until a local TCP port accepts connections."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("127.0.0.1", port)) == 0:
+                return
+        time.sleep(0.1)
+    msg = f"SSH tunnel port 127.0.0.1:{port} not ready after {timeout}s"
+    raise TimeoutError(msg)
+
+
 def create_tunneled_redis(
     conf: ReadInstanceConf,
 ) -> tuple[redis.Redis[bytes], Any]:
@@ -44,30 +84,55 @@ def create_tunneled_redis(
     when done (call ``tunnel.stop()``).
     """
     if conf.ssh_tunnel is not None and conf.ssh_tunnel.ssh_host:
-        from sshtunnel import SSHTunnelForwarder
+        local_port = _find_free_port()
+        remote = f"{conf.redis.host}:{conf.redis.port}"
 
-        ssh_kwargs: dict[str, Any] = {
-            "ssh_username": conf.ssh_tunnel.ssh_user or None,
-            "remote_bind_address": (conf.redis.host, conf.redis.port),
-        }
+        cmd = [
+            "ssh",
+            "-N",
+            "-L",
+            f"{local_port}:{remote}",
+            "-p",
+            str(conf.ssh_tunnel.ssh_port),
+        ]
         if conf.ssh_tunnel.ssh_key_file:
-            ssh_kwargs["ssh_pkey"] = conf.ssh_tunnel.ssh_key_file
-        if conf.ssh_tunnel.ssh_password:
-            ssh_kwargs["ssh_password"] = conf.ssh_tunnel.ssh_password
+            cmd.extend(["-i", conf.ssh_tunnel.ssh_key_file])
+        if conf.ssh_tunnel.ssh_user:
+            cmd.append(f"{conf.ssh_tunnel.ssh_user}@{conf.ssh_tunnel.ssh_host}")
+        else:
+            cmd.append(conf.ssh_tunnel.ssh_host)
 
-        tunnel = SSHTunnelForwarder(
-            (conf.ssh_tunnel.ssh_host, conf.ssh_tunnel.ssh_port),
-            **ssh_kwargs,
+        logger.info(f"Starting SSH tunnel: {' '.join(cmd)}")
+
+        proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
         )
-        tunnel.start()
+
+        try:
+            _wait_for_port(local_port)
+        except TimeoutError:
+            proc.kill()
+            stderr = (proc.stderr.read() if proc.stderr else b"").decode(
+                errors="replace",
+            )
+            msg = (
+                f"SSH tunnel failed to start. stderr: {stderr}\n"
+                f"Try running manually: {' '.join(cmd)}"
+            )
+            raise RuntimeError(msg) from None
+
+        tunnel = SshTunnel(proc, local_port)
         logger.info(
-            f"SSH tunnel established: localhost:{tunnel.local_bind_port}"
-            f" -> {conf.redis.host}:{conf.redis.port}"
+            f"SSH tunnel established: localhost:{local_port}"
+            f" -> {remote}"
             f" via {conf.ssh_tunnel.ssh_host}:{conf.ssh_tunnel.ssh_port}",
         )
         client = redis.Redis(
             host="127.0.0.1",
-            port=tunnel.local_bind_port,
+            port=local_port,
             db=conf.redis.db,
             password=conf.redis.password,
             decode_responses=False,
