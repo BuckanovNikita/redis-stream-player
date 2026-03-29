@@ -15,7 +15,7 @@ from boomrdbox.models import (
     StreamRecord,
     UnsafePlayTargetError,
 )
-from boomrdbox.player import Player, _format_ms, validate_play_target
+from boomrdbox.player import Player, _format_utc_ms, validate_play_target
 
 
 def _make_play_conf(input_path: str, **overrides: Any) -> PlayConf:
@@ -37,16 +37,13 @@ def _make_play_conf(input_path: str, **overrides: Any) -> PlayConf:
 @pytest.mark.parametrize(
     ("ms", "expected"),
     [
-        (0, "00:00:00"),
-        (5_000, "00:00:05"),
-        (61_000, "00:01:01"),
-        (3_661_000, "01:01:01"),
-        (86_400_000, "24:00:00"),
-        (90_061_000, "25:01:01"),
+        (0, "01-01-1970 00:00:00"),
+        (1_709_312_000_000, "01-03-2024 16:53:20"),
+        (86_400_000, "02-01-1970 00:00:00"),
     ],
 )
-def test_format_ms(ms: int, expected: str) -> None:
-    assert _format_ms(ms) == expected
+def test_format_utc_ms(ms: int, expected: str) -> None:
+    assert _format_utc_ms(ms) == expected
 
 
 class TestPlayer:

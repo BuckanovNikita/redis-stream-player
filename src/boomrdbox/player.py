@@ -7,6 +7,7 @@ import signal
 import threading
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import msgpack
@@ -43,11 +44,9 @@ def validate_play_target(host: str, allowed_hosts: list[str]) -> None:
         raise UnsafePlayTargetError(msg)
 
 
-def _format_ms(ms: int) -> str:
-    total_seconds = ms // 1000
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+def _format_utc_ms(ms: int) -> str:
+    dt = datetime.fromtimestamp(ms / 1000, tz=UTC)
+    return dt.strftime("%d-%m-%Y %H:%M:%S")
 
 
 @dataclass(frozen=True)
@@ -194,7 +193,7 @@ class Player:
             bar_format="{desc}: {postfix} [{bar:30}] {percentage:3.0f}%",
             disable=not self._conf.verbose,
         )
-        self._progress.set_postfix_str("00:00:00 / --:--:--")
+        self._progress.set_postfix_str("--.--.---- --:--:-- / --.--.---- --:--:--")
 
         q: queue.Queue[tuple[list[_PreparedRecord], _BatchMeta] | None] = queue.Queue(
             maxsize=self._conf.prefetch,
@@ -227,12 +226,13 @@ class Player:
                     prev_mono = time.monotonic()
                 replayed += len(batch)
 
-                elapsed_ms = batch[-1].message_id.ms - meta.first_ms if batch else 0
+                current_ms = batch[-1].message_id.ms if batch else meta.first_ms
+                elapsed_ms = current_ms - meta.first_ms
                 total_ms = meta.last_ms - meta.first_ms
                 self._progress.n = elapsed_ms
                 self._progress.total = max(total_ms, 1)
                 self._progress.set_postfix_str(
-                    f"{_format_ms(elapsed_ms)} / {_format_ms(total_ms)}"
+                    f"{_format_utc_ms(current_ms)} / {_format_utc_ms(meta.last_ms)}"
                 )
                 self._progress.refresh()
 
