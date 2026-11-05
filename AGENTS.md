@@ -4,6 +4,10 @@
 Python >= 3.12, uv, strict mypy, ruff `select = ["ALL"]`, pytest. Package source:
 `src/boomrdbox/`; console script `boomrdbox = "boomrdbox.cli:main"`.
 
+## Planning
+
+When asked to create a plan, stay in plan mode and do NOT start implementing code unless explicitly asked to implement. Planning and implementation are separate phases.
+
 ## Completion gate
 
 After any code change, run all of these and do not report completion until they pass:
