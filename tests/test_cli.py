@@ -80,9 +80,7 @@ class TestPlayTask:
 
 class TestConvertTask:
     @patch("boomrdbox.tools.Converter")
-    def test_dispatches_to_converter(
-        self, mock_cls: Any, hydra_convert_cfg: DictConfig
-    ):
+    def test_dispatches_to_converter(self, mock_cls: Any, hydra_convert_cfg: DictConfig):
         from boomrdbox.cli import _convert_task
 
         _convert_task(hydra_convert_cfg)
@@ -106,9 +104,7 @@ class TestTruncateTask:
         mock_cls.return_value.run.assert_called_once()
 
     @patch("boomrdbox.tui.TruncateApp")
-    def test_interactive_no_selection(
-        self, mock_app_cls: Any, hydra_truncate_cfg: DictConfig
-    ):
+    def test_interactive_no_selection(self, mock_app_cls: Any, hydra_truncate_cfg: DictConfig):
         from omegaconf import OmegaConf
 
         OmegaConf.update(hydra_truncate_cfg, "interactive", value=True)

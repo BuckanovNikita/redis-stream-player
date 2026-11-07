@@ -57,9 +57,7 @@ class TestPlayer:
 
     @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
-    def test_play_empty_file(
-        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
-    ) -> None:
+    def test_play_empty_file(self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path) -> None:
         mock_client = MagicMock()
         mock_pipe = MagicMock()
         mock_client.pipeline.return_value = mock_pipe
@@ -76,9 +74,7 @@ class TestPlayer:
 
     @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
-    def test_play_records(
-        self, mock_create_redis: Any, _mock_hosts: Any, sample_msgpack: Path
-    ) -> None:
+    def test_play_records(self, mock_create_redis: Any, _mock_hosts: Any, sample_msgpack: Path) -> None:
         mock_client = MagicMock()
         mock_pipe = MagicMock()
         mock_client.pipeline.return_value = mock_pipe
@@ -93,9 +89,7 @@ class TestPlayer:
 
     @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
-    def test_play_sorts_by_message_id(
-        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
-    ) -> None:
+    def test_play_sorts_by_message_id(self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path) -> None:
         """Records are replayed in MessageID order within batches."""
         mock_client = MagicMock()
         mock_pipe = MagicMock()
@@ -163,9 +157,7 @@ class TestPlayer:
 
     @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
-    def test_multiple_batches_with_prefetch(
-        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
-    ) -> None:
+    def test_multiple_batches_with_prefetch(self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path) -> None:
         """Multiple batches are produced and consumed correctly."""
         mock_client = MagicMock()
         mock_pipe = MagicMock()
@@ -174,9 +166,7 @@ class TestPlayer:
         mock_create_redis.return_value = mock_client
 
         fpath = tmp_path / "multi_batch.msgpack"
-        records = [
-            StreamRecord("s", MessageID(i * 100, 0), {"v": str(i)}) for i in range(10)
-        ]
+        records = [StreamRecord("s", MessageID(i * 100, 0), {"v": str(i)}) for i in range(10)]
         with RecordWriter(fpath) as writer:
             for r in records:
                 writer.write(r)
@@ -194,9 +184,7 @@ class TestPlayer:
 
     @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
-    def test_exclude_streams(
-        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
-    ) -> None:
+    def test_exclude_streams(self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path) -> None:
         """Excluded streams are not replayed."""
         mock_client = MagicMock()
         mock_pipe = MagicMock()
@@ -224,9 +212,7 @@ class TestPlayer:
 
     @patch("boomrdbox.player.load_allowed_play_hosts", return_value=["localhost"])
     @patch("boomrdbox.player.create_redis")
-    def test_rename_streams(
-        self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path
-    ) -> None:
+    def test_rename_streams(self, mock_create_redis: Any, _mock_hosts: Any, tmp_path: Path) -> None:
         """Renamed streams use the target name in xadd."""
         mock_client = MagicMock()
         mock_pipe = MagicMock()
@@ -243,9 +229,7 @@ class TestPlayer:
             for r in records:
                 writer.write(r)
 
-        conf = _make_play_conf(
-            str(fpath), speed=1000.0, rename_streams={"s1": "renamed:s1"}
-        )
+        conf = _make_play_conf(str(fpath), speed=1000.0, rename_streams={"s1": "renamed:s1"})
         player = Player(conf)
         player.run()
 

@@ -126,9 +126,7 @@ class Player:
                     batch.sort(key=lambda r: r.message_id)
                     prepared = [
                         _PreparedRecord(
-                            stream_name=self._rename_streams.get(
-                                r.stream_name, r.stream_name
-                            ),
+                            stream_name=self._rename_streams.get(r.stream_name, r.stream_name),
                             message_id=r.message_id,
                             xadd_fields=self._prepare_fields(r),
                         )
@@ -144,9 +142,7 @@ class Player:
                 batch.sort(key=lambda r: r.message_id)
                 prepared = [
                     _PreparedRecord(
-                        stream_name=self._rename_streams.get(
-                            r.stream_name, r.stream_name
-                        ),
+                        stream_name=self._rename_streams.get(r.stream_name, r.stream_name),
                         message_id=r.message_id,
                         xadd_fields=self._prepare_fields(r),
                     )
@@ -231,9 +227,7 @@ class Player:
                 total_ms = meta.last_ms - meta.first_ms
                 self._progress.n = elapsed_ms
                 self._progress.total = max(total_ms, 1)
-                self._progress.set_postfix_str(
-                    f"{_format_utc_ms(current_ms)} / {_format_utc_ms(meta.last_ms)}"
-                )
+                self._progress.set_postfix_str(f"{_format_utc_ms(current_ms)} / {_format_utc_ms(meta.last_ms)}")
                 self._progress.refresh()
 
         finally:

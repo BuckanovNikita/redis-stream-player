@@ -140,9 +140,7 @@ def load_instances() -> dict[str, ReadInstanceConf]:
     if not isinstance(instances_raw, dict):
         return {}
     return {
-        name: _parse_instance(name, section)
-        for name, section in instances_raw.items()
-        if isinstance(section, dict)
+        name: _parse_instance(name, section) for name, section in instances_raw.items() if isinstance(section, dict)
     }
 
 

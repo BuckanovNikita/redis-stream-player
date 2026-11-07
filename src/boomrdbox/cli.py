@@ -209,8 +209,7 @@ def _setup_remove(ns: argparse.Namespace) -> None:
 
     if get_instance(ns.name) is None:
         logger.error(
-            f"Instance {ns.name!r} not found."
-            " Run 'boomrdbox setup list' to see configured instances.",
+            f"Instance {ns.name!r} not found. Run 'boomrdbox setup list' to see configured instances.",
         )
         sys.exit(1)
     remove_instance(ns.name)
@@ -229,12 +228,9 @@ def _setup_list() -> None:
         ssh_info = ""
         if inst.ssh_tunnel is not None and inst.ssh_tunnel.ssh_host:
             tunnel = inst.ssh_tunnel
-            ssh_info = (
-                f" via ssh://{tunnel.ssh_user}@{tunnel.ssh_host}:{tunnel.ssh_port}"
-            )
+            ssh_info = f" via ssh://{tunnel.ssh_user}@{tunnel.ssh_host}:{tunnel.ssh_port}"
         logger.info(
-            f"  {name}: {inst.redis.host}:{inst.redis.port}"
-            f" db={inst.redis.db}{ssh_info}",
+            f"  {name}: {inst.redis.host}:{inst.redis.port} db={inst.redis.db}{ssh_info}",
         )
 
 

@@ -118,10 +118,7 @@ def create_tunneled_redis(
             stderr = (proc.stderr.read() if proc.stderr else b"").decode(
                 errors="replace",
             )
-            msg = (
-                f"SSH tunnel failed to start. stderr: {stderr}\n"
-                f"Try running manually: {' '.join(cmd)}"
-            )
+            msg = f"SSH tunnel failed to start. stderr: {stderr}\nTry running manually: {' '.join(cmd)}"
             raise RuntimeError(msg) from None
 
         tunnel = SshTunnel(proc, local_port)

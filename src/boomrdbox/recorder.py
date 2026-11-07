@@ -158,8 +158,7 @@ class Recorder:
 
         total_elapsed = time.monotonic() - start_time
         logger.info(
-            f"Recording complete: {writer.count} messages"
-            f" in {total_elapsed:.1f}s, file: {writer.path}",
+            f"Recording complete: {writer.count} messages in {total_elapsed:.1f}s, file: {writer.path}",
         )
 
     def _check_limits(
@@ -178,11 +177,7 @@ class Recorder:
                 logger.info(f"Max duration {max_duration:.1f}s reached")
                 return True
 
-        max_size_bytes = (
-            int(self._conf.max_size_mb * 1024 * 1024)
-            if self._conf.max_size_mb is not None
-            else None
-        )
+        max_size_bytes = int(self._conf.max_size_mb * 1024 * 1024) if self._conf.max_size_mb is not None else None
         if max_size_bytes is not None and writer.size >= max_size_bytes:
             logger.info("Max file size reached, stopping")
             return True
@@ -254,8 +249,7 @@ class Recorder:
                 continue
 
             stream_summary = ", ".join(
-                f"{s[0].decode() if isinstance(s[0], bytes) else s[0]}={len(s[1])}"
-                for s in result
+                f"{s[0].decode() if isinstance(s[0], bytes) else s[0]}={len(s[1])}" for s in result
             )
             logger.debug(f"XREAD returned {len(result)} stream(s): {stream_summary}")
 
@@ -284,9 +278,7 @@ class Recorder:
             stream_name_bytes, messages = stream_data
             try:
                 stream_name = (
-                    stream_name_bytes.decode()
-                    if isinstance(stream_name_bytes, bytes)
-                    else str(stream_name_bytes)
+                    stream_name_bytes.decode() if isinstance(stream_name_bytes, bytes) else str(stream_name_bytes)
                 )
             except (UnicodeDecodeError, AttributeError):
                 logger.exception(f"Failed to decode stream name: {stream_name_bytes!r}")
@@ -300,11 +292,7 @@ class Recorder:
 
             for msg_id_bytes, fields_raw in messages:
                 try:
-                    msg_id_str = (
-                        msg_id_bytes.decode()
-                        if isinstance(msg_id_bytes, bytes)
-                        else str(msg_id_bytes)
-                    )
+                    msg_id_str = msg_id_bytes.decode() if isinstance(msg_id_bytes, bytes) else str(msg_id_bytes)
                 except (UnicodeDecodeError, AttributeError):
                     logger.exception(f"Failed to decode message ID: {msg_id_bytes!r}")
                     continue

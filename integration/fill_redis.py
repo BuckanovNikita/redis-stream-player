@@ -82,12 +82,7 @@ def main() -> None:
 
     for stream_name, meta in streams.items():
         total += meta["count"]
-        print(
-            f"STREAM_RANGE {stream_name}"
-            f" {first_ids[stream_name]}"
-            f" {last_ids[stream_name]}"
-            f" {meta['count']}"
-        )
+        print(f"STREAM_RANGE {stream_name} {first_ids[stream_name]} {last_ids[stream_name]} {meta['count']}")
 
     print(f"TOTAL_MESSAGES {total}")
     print(f"BASE_TIMESTAMP_MS {base_ms}")

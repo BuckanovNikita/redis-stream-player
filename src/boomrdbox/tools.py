@@ -27,9 +27,7 @@ class Converter:
     def run(self) -> None:
         """Read msgpack and write to the configured output format."""
         logger.info(
-            f"Converting {self._conf.input}"
-            f" to {self._conf.format}"
-            f" -> {self._conf.output}",
+            f"Converting {self._conf.input} to {self._conf.format} -> {self._conf.output}",
         )
         reader = RecordReader(self._conf.input)
         fmt = self._conf.format

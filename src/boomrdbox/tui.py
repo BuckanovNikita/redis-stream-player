@@ -145,9 +145,7 @@ def parse_utc(
         return None
 
     base_dt = datetime.fromtimestamp(global_first_ms / 1000, tz=UTC)
-    base_epoch = int(
-        base_dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000
-    )
+    base_epoch = int(base_dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
     result = base_epoch + time_ms
     for day_offset in (0, 1, -1):
         candidate = base_epoch + day_offset * 86_400_000 + time_ms
@@ -397,10 +395,7 @@ class TimelineScreen(Screen[tuple[int, int] | None]):
         """Build the timeline screen layout."""
         meta = self._metadata
         duration = ms_to_hms(meta.global_last_ms - meta.global_first_ms)
-        period = (
-            f"Период: {ms_to_utc(meta.global_first_ms)}"
-            f" — {ms_to_utc(meta.global_last_ms)} UTC"
-        )
+        period = f"Период: {ms_to_utc(meta.global_first_ms)} — {ms_to_utc(meta.global_last_ms)} UTC"
         with VerticalScroll(id="timeline-container"):
             yield Label(
                 f"Файл: {meta.file_path} ({meta.file_size:,} байт)",
@@ -459,9 +454,7 @@ class TimelineScreen(Screen[tuple[int, int] | None]):
             self.left_ms,
             self.right_ms,
         )
-        selection_label.update(
-            f"  Выбрано: {selected_duration}  ~{est_messages:,} сообщ."
-        )
+        selection_label.update(f"  Выбрано: {selected_duration}  ~{est_messages:,} сообщ.")
 
         bar.left_ms = self.left_ms
         bar.right_ms = self.right_ms
