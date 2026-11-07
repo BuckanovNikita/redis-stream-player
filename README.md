@@ -269,5 +269,5 @@ uv sync --dev
 uv run pytest                          # тесты
 uv run ruff check .                    # линтер
 uv run mypy .                          # проверка типов
-uv run pre-commit run --all-files      # все хуки
+uv run prek run --all-files      # все хуки
 ```

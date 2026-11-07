@@ -12,21 +12,13 @@ When asked to create a plan, stay in plan mode and do NOT start implementing cod
 
 After any code change, run all of these and do not report completion until they pass:
 
-```bash
-uv run ruff format .
-uv run ruff check .
-uv run lint-imports
-uv run mypy .
-uv run vulture
-uv run pytest
-```
-
-`uv run pre-commit run --all-files` runs the same six hooks
+`uv run prek run --all-files` runs the configured checks
 (`.pre-commit-config.yaml`); run it before every commit. Git hooks are not
-assumed to be installed, so run the gate explicitly.
+assumed to be installed, so run the gate explicitly. Its results also satisfy the
+completion checks above.
 Do not bypass hooks (`--no-verify`) or stash unrelated changes to make checks pass:
 fix the failure, or report the blocker and, if needed, run the checks in a separate
-worktree. To commit or push, use the `commit` skill.
+worktree.
 
 ## Development commands
 
@@ -97,7 +89,7 @@ This project enables ALL ruff rules. When writing new code, watch for:
 ## Git
 
 - Use SSH (not HTTPS) for git push operations. Remote URL format: `git@github.com:<org>/<repo>.git`
-- Use Conventional Commits (feat, fix, refactor, test, docs, chore); the `commit` skill has the full workflow.
+- Use Conventional Commits (feat, fix, refactor, test, docs, chore).
 
 ## Documentation language
 

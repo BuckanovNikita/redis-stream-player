@@ -26,7 +26,7 @@ dev = [
     "pytest-cov",
     "mypy",
     "ruff",
-    "pre-commit",
+    "prek==0.5.10",
     "vulture",
     "import-linter",
     "types-pyyaml",
@@ -47,7 +47,7 @@ packages = ["src/boomrdbox"]
 
 [tool.ruff]
 target-version = "py312"
-line-length = 88
+line-length = 120
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -71,9 +71,6 @@ fixable = ["ALL"]
 "src/boomrdbox/io.py" = ["S603"]
 "src/boomrdbox/player.py" = ["PLR0915"]
 "src/boomrdbox/tui.py" = ["PLC0415", "RUF001", "D107", "D102", "FBT001"]
-
-[tool.ruff.format]
-docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.12"
