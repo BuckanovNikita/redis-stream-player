@@ -102,7 +102,7 @@ disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short -n auto --cov=boomrdbox --cov-report=term-missing --cov-fail-under=80"
+addopts = "-v --tb=short -n auto --dist=loadgroup --cov=boomrdbox --cov-report=term-missing --cov-fail-under=80"
 markers = ["integration: integration tests requiring Docker Redis"]
 
 [tool.vulture]

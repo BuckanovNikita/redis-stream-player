@@ -30,7 +30,7 @@ repos:
     language: system
     pass_filenames: false
     include_deleted: true
-    files: (?:^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$|\.pre-commit-config\.yaml$))|^\.python-version$
+    files: (?:^(src/|tests/|scripts/|integration/|pyproject\.toml$|uv\.lock$|\.pre-commit-config\.yaml$))|^\.python-version$
   - id: vulture
     name: vulture
     entry: uv run vulture

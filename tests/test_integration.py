@@ -34,6 +34,9 @@ from boomrdbox.player import Player
 from boomrdbox.recorder import Recorder
 from boomrdbox.tools import Converter, Info, Truncator
 
+# These tests flush shared Redis databases, so keep them on one xdist worker.
+pytestmark = pytest.mark.xdist_group("redis_integration")
+
 _REDIS_HOST = "localhost"
 _REDIS_PORT = 6389
 _RECORD_DB = 2
