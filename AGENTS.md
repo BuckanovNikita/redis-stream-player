@@ -10,12 +10,9 @@ When asked to create a plan, stay in plan mode and do NOT start implementing cod
 
 ## Completion gate
 
-After any code change, run all of these and do not report completion until they pass:
-
-`uv run prek run --all-files` runs the configured checks
-(`.pre-commit-config.yaml`); run it before every commit. Git hooks are not
-assumed to be installed, so run the gate explicitly. Its results also satisfy the
-completion checks above.
+After any code change, run `uv run prek run --all-files` (checks are owned by
+`.pre-commit-config.yaml`) and do not report completion until it passes. Run it before
+every commit too. Git hooks are not assumed to be installed, so run it explicitly.
 Do not bypass hooks (`--no-verify`) or stash unrelated changes to make checks pass:
 fix the failure, or report the blocker and, if needed, run the checks in a separate
 worktree.
