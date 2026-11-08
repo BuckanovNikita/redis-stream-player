@@ -23,40 +23,40 @@ repos:
     language: system
     pass_filenames: false
     include_deleted: true
-    files: ^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$|\.pre-commit-config\.yaml$)
+    files: (?:^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$|\.pre-commit-config\.yaml$))|^\.python-version$
   - id: mypy
     name: mypy
     entry: uv run mypy .
     language: system
     pass_filenames: false
     include_deleted: true
-    files: ^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$|\.pre-commit-config\.yaml$)
+    files: (?:^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$|\.pre-commit-config\.yaml$))|^\.python-version$
   - id: vulture
     name: vulture
     entry: uv run vulture
     language: system
     pass_filenames: false
     include_deleted: true
-    files: ^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$|\.pre-commit-config\.yaml$)
+    files: (?:^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$|\.pre-commit-config\.yaml$))|^\.python-version$
   - id: pytest
     name: pytest
     entry: uv run pytest -n auto
     language: system
     pass_filenames: false
     include_deleted: true
-    files: ^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$|\.pre-commit-config\.yaml$)
+    files: (?:^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$|\.pre-commit-config\.yaml$))|^\.python-version$
   - id: ruff-format-config
     name: ruff format (configuration changed)
     entry: uv run ruff format --force-exclude .
     language: system
     pass_filenames: false
     include_deleted: true
-    files: ^(pyproject\.toml|uv\.lock|\.?ruff\.toml|\.pre-commit-config\.yaml)$
+    files: (?:^(pyproject\.toml|uv\.lock|\.?ruff\.toml|\.pre-commit-config\.yaml)$)|^\.python-version$
   - id: ruff-check-config
     name: ruff check (configuration changed)
     entry: uv run ruff check --force-exclude .
     language: system
     pass_filenames: false
     include_deleted: true
-    files: ^(pyproject\.toml|uv\.lock|\.?ruff\.toml|\.pre-commit-config\.yaml)$
+    files: (?:^(pyproject\.toml|uv\.lock|\.?ruff\.toml|\.pre-commit-config\.yaml)$)|^\.python-version$
 minimum_prek_version: 0.5.10
