@@ -11,9 +11,8 @@ When asked to create a plan, stay in plan mode and do NOT start implementing cod
 ## Completion gate
 
 After any code change, run `uv run prek run --all-files` (checks are owned by
-`.pre-commit-config.yaml`) and do not report completion until it passes. Run it before
-every commit too. Git hooks are not assumed to be installed, so run it explicitly.
-Do not bypass hooks (`--no-verify`) or stash unrelated changes to make checks pass:
+`.pre-commit-config.yaml`) and do not report completion until it passes. Run it after the final task commit. Git hooks are not assumed installed.
+Do not disable all hooks (`--no-verify`) or stash unrelated changes to make checks pass:
 fix the failure, or report the blocker and, if needed, run the checks in a separate
 worktree.
 
@@ -91,3 +90,13 @@ This project enables ALL ruff rules. When writing new code, watch for:
 ## Documentation language
 
 - `README.md` is written in Russian; agent instructions and skills are written in English.
+
+## Split commits and final verification
+
+Intermediate task commits may skip explicitly named verification hooks with `SKIP`;
+keep commit-message validation enabled. After the last commit, clear `SKIP` and run
+`prek run --all-files` through the project environment. Keep applicable manual and
+release gates. Inspect auto-fixes and commit mechanical changes separately, then
+repeat affected verification until the final committed content passes without changes.
+Reuse successful checks while their inputs remain unchanged; do not repeat full
+verification before every intermediate commit.
