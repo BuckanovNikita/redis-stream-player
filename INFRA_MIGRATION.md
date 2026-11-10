@@ -30,9 +30,9 @@ on the retired k8s-infra registry, run tags or storage paths.
 
 k8s-infra retains ingress, the local-CA certificate, Docker Desktop's default
 `hostpath` storage class and one exclusive GPU slot, without time-slicing.
-The certificate covers single-label hosts directly under `k8s.docker.internal`
-only; it does not cover deeper project subdomains. Wildcard name lookup is
-available only if phase P4 proves it. Until then, use `kubectl port-forward`.
+No wildcard name lookup will be provided; it was probed and dropped.
+Only dedicated services have host names: ClearML web, API and files over trusted TLS,
+and `mongodb.k8s.docker.internal` on port 27018. No current project uses them.
 Request `nvidia.com/gpu: 1` only for a test that needs the GPU.
 The platform no longer provisions project dependencies or manages Compose.
 
@@ -67,9 +67,9 @@ The plan keeps deletion disabled until real restart proofs and arming are done.
 8. Remove `INFRA_RUN_TAG`, `INFRA_PROJECT`, `K8S_INFRA_SKILL_DIR` and
    `INFRA_REGISTRY`, plus calls to `infra.py`, `clearml.py`, `mongodb.py`,
    `cvat.py`, `lakefs.py` and `postgres.py`, from code, skills and shell profiles.
-9. After P4 proves wildcard lookup, use a single-label host directly under
-   `k8s.docker.internal` on the project's own Ingress with the platform
-   certificate. Until then, and if P4 fails, use `kubectl port-forward`.
+9. Host access to a project's own services is by `kubectl port-forward`. Names a
+   project invents do not resolve on the host; only the dedicated services have
+   host names.
 
 ## Required outcome and workflow
 
