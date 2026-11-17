@@ -8,12 +8,16 @@ Python >= 3.12, uv, strict mypy, ruff `select = ["ALL"]`, pytest. Package source
 
 When asked to create a plan, stay in plan mode and do NOT start implementing code unless explicitly asked to implement. Planning and implementation are separate phases.
 
-## Issue tracker and delivery
+## Agent skills
 
-Active issues and plans live in Linear (team `SIP`, project `redis-stream-player`). Delivery is a
-GitHub PR from a task branch: agents push the branch and open the PR, humans merge. Read
-[the tracker guidance](docs/agents/issue-tracker.md) before planning, picking up or delivering
-work. Readiness labels are in [triage labels](docs/agents/triage-labels.md).
+### Issue tracker
+
+Active issues and plans live in Linear (team `SIP`, project `redis-stream-player`). Delivery is a GitHub PR from a task branch: agents push the branch and open the PR, humans merge. Read [the tracker guidance](docs/agents/issue-tracker.md) before planning, picking up or delivering work.
+
+### Triage labels
+
+Readiness and category roles are Linear labels, separate from lifecycle state. See
+[triage labels](docs/agents/triage-labels.md).
 
 ## Completion gate
 
