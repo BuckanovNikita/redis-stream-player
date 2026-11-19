@@ -125,8 +125,8 @@ backend hatchling; wheel packages `src/boomrdbox`.
   storage class or `emptyDir`; reach it from the host with `kubectl port-forward`. Namespaces are
   swept 48 h after creation or after a PC/Docker Desktop restart, so tooling must recreate them.
   Keep real Redis integration and CLI coverage against the new environment; absent-service skips
-  do not count. The end state has no Compose dependency. Platform rules: the k8s-infra
-  repository's AGENTS.md and the `k8s-infra` skill. Done when verification passes against it,
+  do not count. The end state has no Compose dependency. Platform rules: the `AGENTS.md` and
+  `DOCS.md` of the k8s-infra repository. Done when verification passes against it,
   the owner is told, and the sweeper report shows its namespaces with a quota (a missing quota
   means incomplete); then remove this bullet and the AGENTS.md pitfall.
 
@@ -161,6 +161,6 @@ Linear team `SIP`, project `redis-stream-player`; GitHub PRs deliver.
 ## History
 
 The full pre-compression documents are in git at commit `40abd97`; read one with
-`git show 40abd97:<path>`. Removed paths: `INFRA_MIGRATION.md`,
+`git show 40abd97:<path>`. Removed paths: `CLAUDE.md`, `INFRA_MIGRATION.md`,
 `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, `.pre-commit-config.yaml`
 (also the previous `AGENTS.md` content, rewritten here).
