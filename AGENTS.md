@@ -1,113 +1,148 @@
 # redis-stream-player (boomrdbox)
 
-`boomrdbox` records Redis stream messages to msgpack files and replays them.
-Python >= 3.12, uv, strict mypy, ruff `select = ["ALL"]`, pytest. Package source:
-`src/boomrdbox/`; console script `boomrdbox = "boomrdbox.cli:main"`.
+`boomrdbox` records Redis stream messages to msgpack files and replays them. Python package,
+src layout, console script `boomrdbox = "boomrdbox.cli:main"`. Reference material (architecture,
+config contracts, file format, operations, tracker labels): [DOCS.md](DOCS.md). User guide in
+Russian: [README.md](README.md).
 
-## Planning
+## Layout
 
-When asked to create a plan, stay in plan mode and do NOT start implementing code unless explicitly asked to implement. Planning and implementation are separate phases.
+- `src/boomrdbox/` — package: `cli.py` (dispatch), `_config.py` (hydra-zen store), `recorder.py`,
+  `player.py`, `tools.py` (convert/truncate/info), `tui.py` (Textual truncate and setup forms),
+  `io.py` (Redis factory, SSH tunnel, msgpack reader/writer), `instances.py` (persistent TOML),
+  `models.py` (domain types and config dataclasses).
+- `tests/` — pytest suite; `tests/test_integration.py` holds `@pytest.mark.integration` tests.
+- `integration/` — Docker end-to-end script `integration_test.sh`, `fill_redis.py`, `truncate_cfg.yaml`.
+- `docker-compose.yaml` — dev Redis on host port 6389, RedisInsight on 5540.
+- `pyproject.toml` — dependencies and all tool config (ruff, mypy, pytest, vulture, import-linter).
 
-## Agent skills
-
-### Issue tracker
-
-Active issues and plans live in Linear (team `SIP`, project `redis-stream-player`). Delivery is a GitHub PR from a task branch: agents push the branch and open the PR, humans merge. Read [the tracker guidance](docs/agents/issue-tracker.md) before planning, picking up or delivering work.
-
-### Triage labels
-
-Readiness and category roles are Linear labels, separate from lifecycle state. See
-[triage labels](docs/agents/triage-labels.md).
-
-## Completion gate
-
-After any code change, run `uv run prek run --all-files` (checks are owned by
-`.pre-commit-config.yaml`) and do not report completion until it passes. Run it after the final task commit. Git hooks are not assumed installed.
-Do not disable all hooks (`--no-verify`) or stash unrelated changes to make checks pass:
-fix the failure, or report the blocker and, if needed, run the checks in a separate
-worktree.
-
-## Development commands
+## Environment
 
 ```bash
-uv sync --dev                                   # install
-uv run pytest                                   # full suite (-n auto, coverage >= 80 %)
-uv run pytest tests/test_foo.py --no-cov        # single file (partial runs fail the coverage gate without --no-cov)
-uv run pytest -k "test_name" --no-cov           # single test by name
-uv run ruff format .                            # auto-format (run first)
-uv run ruff check . --fix                       # auto-fix lint issues
-uv run pytest -m integration                    # needs `docker compose up -d redis` (port 6389); skips if Redis is absent
-bash integration/integration_test.sh            # Docker end-to-end: fill, record, truncate, play, verify
+uv sync --dev          # Python >= 3.12 (.python-version), dev group holds every check tool
 ```
 
-## CLI commands
+## Checks
 
-- `record` — capture Redis stream messages to msgpack file
-- `play` — replay recorded messages (writes to Redis, gated by host whitelist)
-- `convert` — export msgpack to Parquet/CSV
-- `truncate` — slice recordings by message ID range (supports interactive TUI)
-- `info` — show per-stream statistics
-- `setup` — manage read instances and play-host whitelist (uses argparse, not Hydra)
+No git hooks or hook runner. Run these directly from the repo root after any code change and do
+not report completion until they pass:
 
-## Key subsystems
-
-- **Play safety**: `player.py` validates `redis.host` against a whitelist loaded by
-  `instances.load_allowed_play_hosts()` from `platformdirs.user_config_dir("boomrdbox")/config.toml`
-  (`~/.config/boomrdbox/config.toml` on Linux). Default whitelist: `["redis"]`. When adding
-  new behavior that gates `Player.run()` or `Recorder.run()`, update existing tests to mock the
-  new gate — otherwise they break on `host='localhost'`.
-- **Read instances**: Persistent named Redis connections with optional SSH tunnels, stored in
-  `config.toml` (same location as above). SSH tunnels are an `ssh -L` subprocess
-  (`io.create_tunneled_redis`). Used by `record` command via `instance=<name>`. Never used by `play`.
-- **Config layers**: Hydra-zen programmatic config (`_config.py`) for Hydra commands; argparse for
-  `setup` command; persistent TOML for user-defined instances and play-host whitelist.
-
-## Architecture
-
-### Layered imports (enforced by import-linter in pyproject.toml)
-
-```
-boomrdbox.cli                          <- CLI entry point
-boomrdbox._config | .recorder | .player | .tools | .tui  <- Application layer
-boomrdbox.io | .instances              <- Infrastructure layer
-boomrdbox.models                       <- Domain layer (pure types, no deps)
+```bash
+uv run ruff format --force-exclude .     # format first
+uv run ruff check --force-exclude .      # add --fix for safe autofixes; inspect the diff
+uv run lint-imports                      # layer contracts in pyproject.toml
+uv run mypy .                            # strict; covers src/, tests/, integration/
+uv run vulture                           # dead code in src/boomrdbox, min_confidence 80
+uv run pytest                            # -n auto, coverage gate --cov-fail-under=80
 ```
 
-When adding a new module:
-1. Place it in the correct layer
-2. Update `[[tool.importlinter.contracts]]` in `pyproject.toml` — both "Layered architecture" layers AND "Domain isolation" forbidden_modules
-3. Add per-file-ignores in `[tool.ruff.lint.per-file-ignores]` if needed (e.g., `PLC0415` for lazy imports)
+- Partial runs fail the coverage gate: `uv run pytest tests/test_foo.py --no-cov`,
+  `uv run pytest -k name --no-cov`.
+- `uv run pytest -m integration` needs `docker compose up -d redis` (localhost:6389); without
+  Redis those tests skip, and a skip is not a pass. Plain `uv run pytest` includes them; when
+  Redis is up they FLUSHDB DB 0 and 1 on localhost:6389.
+- `bash integration/integration_test.sh [--keep-redis]` — Docker end-to-end: fill, record,
+  truncate, play, verify. Starts Compose itself; flushes DB 0/1, reinstalls the built wheel into
+  `.venv`, and runs `docker compose down` unless `--keep-redis`. Its play step needs
+  `boomrdbox setup play-hosts add localhost` in the real user config first.
+- Never stash or discard unrelated changes to make checks pass; fix the failure or report the
+  blocker, running checks in a separate worktree if needed.
+- Package build: `uv build` (hatchling; `pyproject.toml` names `README.md` as readme).
 
-### Ruff `select = ["ALL"]` — common pitfalls
+## Architecture boundaries
 
-This project enables ALL ruff rules. When writing new code, watch for:
-- **PLC0415** — imports inside a function (lazy imports). Already ignored for `cli.py`, `tools.py`, `tui.py` and `tests/**`; add a per-file ignore elsewhere only if intentional.
-- **PLR0915** — too many statements in a function (>50). Extract helpers or add to per-file-ignores.
-- **PT019** — `_mock_*` params in tests that come from `@patch` decorators. Already suppressed in `tests/**`.
-- **S105/S106** — hardcoded passwords in test code. Already suppressed in `tests/**`.
-- **D102** — missing docstrings on public methods. Add docstrings or suppress per-file.
+Layered imports, enforced by import-linter (`[tool.importlinter]` in `pyproject.toml`):
 
-### Test mocking rules
+```
+boomrdbox.cli                                              <- entry point
+boomrdbox._config | .recorder | .player | .tools | .tui     <- application
+boomrdbox.io | .instances                                  <- infrastructure
+boomrdbox.models                                           <- domain (no imports of other layers)
+```
 
-- Player tests MUST mock `boomrdbox.player.load_allowed_play_hosts` (return `["localhost"]`) when calling `Player.run()`, because default whitelist is `["redis"]` and test fixtures use `host='localhost'`.
-- Recorder tests that use `instance=` MUST mock `boomrdbox.recorder.get_instance` and `boomrdbox.recorder.create_tunneled_redis`.
-- Instance tests MUST mock `boomrdbox.instances.get_config_path` to use `tmp_path` and avoid writing to real user config.
+Adding a module:
+1. Place it in a layer.
+2. Update both contracts in `pyproject.toml`: the "Layered architecture" layers and the
+   "Domain isolation" `forbidden_modules`.
+3. Add `[tool.ruff.lint.per-file-ignores]` entries only when intentional (e.g. `PLC0415` for lazy imports).
 
-## Git
+## Hard constraints
 
-- Use SSH (not HTTPS) for git push operations. Remote URL format: `git@github.com:<org>/<repo>.git`
-- Use Conventional Commits (feat, fix, refactor, test, docs, chore).
+- `play` writes to Redis and is gated: `Player.run()` calls `validate_play_target(redis.host,
+  load_allowed_play_hosts())` and raises `UnsafePlayTargetError` for hosts outside the whitelist
+  (default `["redis"]`). Never weaken or bypass the gate.
+- Read instances (`setup add`, `record instance=<name>`) are read-only. `play` never uses them.
+- `setup` uses argparse; every other subcommand is a Hydra task configured by hydra-zen.
+- Config precedence: CLI overrides > `REDIS_*` env vars > preset defaults. Preserve it.
+- Recording file format is persisted data: keep readers compatible with existing files (see DOCS.md).
+- Preserve CLI output, exit codes (1 on fatal error, 130 on interrupt) and public imports.
 
-## Documentation language
+## Test mocking rules
 
-- `README.md` is written in Russian; agent instructions and skills are written in English.
+- Player tests calling `Player.run()` MUST mock `boomrdbox.player.load_allowed_play_hosts`
+  (return `["localhost"]`); fixtures use `host='localhost'`.
+- Recorder tests using `instance=` MUST mock `boomrdbox.recorder.get_instance` and
+  `boomrdbox.recorder.create_tunneled_redis`.
+- Instance tests MUST mock `boomrdbox.instances.get_config_path` to `tmp_path`; never write the
+  real user config.
+- A new gate on `Player.run()` or `Recorder.run()` requires mocking it in existing tests.
+- Integration tests share `xdist_group("redis_integration")`; keep new live-Redis tests in it.
 
-## Split commits and final verification
+## Ruff `select = ["ALL"]` pitfalls
 
-Intermediate task commits may skip explicitly named verification hooks with `SKIP`;
-keep commit-message validation enabled. After the last commit, clear `SKIP` and run
-`prek run --all-files` through the project environment. Keep applicable manual and
-release gates. Inspect auto-fixes and commit mechanical changes separately, then
-repeat affected verification until the final committed content passes without changes.
-Reuse successful checks while their inputs remain unchanged; do not repeat full
-verification before every intermediate commit.
+- `PLC0415` (lazy import) is ignored for `cli.py`, `tools.py`, `tui.py`, `tests/**` only.
+- `PLR0915` (>50 statements): extract helpers; `player.py` is already excepted.
+- `tests/**` already ignores `S101`, `S105`, `S106`, `D`, `ANN`, `PT019`, `PLC0415`.
+- `D102` missing public-method docstrings: add docstrings rather than suppress.
+
+## Language standards
+
+- Python >= 3.12 syntax; modules use `from __future__ import annotations`; keep that consistent.
+- Strict mypy: explicit types, no blanket `Any` or `ignore_missing_imports`; overrides stay
+  scoped to the listed untyped modules (`msgpack`, `pyarrow`, `hydra_zen`, `textual`). Add stubs to the dev group.
+- Ruff lint fixes before formatting; formatting does not sort imports (lint rules do). Use
+  `--force-exclude` when passing explicit paths. Safe fixes only; inspect the diff.
+- Logging via Loguru; validated config via Pydantic dataclasses; tests via pytest.
+- Catch specific exceptions at a boundary that can handle them; chain the cause (`raise ... from exc`).
+- Dependencies: `uv add`/`uv remove` in the right group; plain `uv lock` (not `--upgrade`)
+  to refresh the lock; inspect both `pyproject.toml` and `uv.lock` diffs.
+- Cleanup: trace consumers before removing code; a vulture or grep hit is a lead, not proof.
+
+## Release and delivery
+
+- Issues, specs and plans live in Linear: team `SIP`, project `redis-stream-player`. Search
+  before creating. Lifecycle and labels: DOCS.md "Tracker".
+- When asked for a plan, plan only; do not implement until asked.
+- Deliver via one task branch and one GitHub PR against `main` in
+  `BuckanovNikita/redis-stream-player`. Put the issue id (`SIP-NN`) in the branch name and PR
+  title; list every included issue in the PR description.
+- Agents commit, push the task branch and open the PR; humans merge. Never push `main` and never
+  deliver by merging locally.
+- This repository is public and Linear is private: cite issues by `SIP-NN` only; never paste
+  Linear URLs, issue text or comments into commits, PRs or files. Put the PR link in the issue.
+- Use SSH remotes (`git@github.com:<org>/<repo>.git`).
+- Checks above pass on the branch before the PR is marked ready for review.
+- The required independent review (see Working agreement) comes from someone who did not write
+  the change, after integrated verification and before the PR is marked ready for review; the
+  human merge is a separate step.
+
+## Known pitfalls
+
+- Recording appends (`open("ab")`): writing to an existing output file extends it.
+- Play uses `XADD id="*"`: replayed IDs are new; ordering is sorted per batch, not globally.
+- `RecordReader` stops silently (warning only) at a truncated tail record.
+- Default whitelist `["redis"]` means `play` against `localhost` fails until `setup play-hosts add localhost`.
+- Dev Redis is on host port 6389, not 6379; the default Hydra preset uses 6379.
+- Local test infrastructure is due to move from Compose to a private Redis in a project-owned
+  Kubernetes namespace; see DOCS.md "Operations".
+
+## Working agreement
+- At the start of work, state the worktree path, the current branch and its relation to the default branch; say when remote refs were not fetched.
+- Inspect existing and staged changes before editing. Preserve unrelated work and local overrides; stage only task-owned paths and inspect the staged diff.
+- Report what each executed check establishes and what remains unverified; distinguish mocked checks, live outcomes and historical evidence. Clean up task-owned processes and temporary resources.
+- Tests must exercise product code, never project tooling.
+- Changes to behavior, interfaces, dependencies, security or operational policy need a fresh independent review after integration and verification. Small wording edits may be self-reviewed.
+- Split large work into independent delegated tasks with explicit write ownership and acceptance evidence; delegated agents do not delegate further.
+- Use Conventional Commits. Commit automatic formatting separately from logic. Local commits within the task scope need no approval.
+- README.md is Russian; AGENTS.md and DOCS.md are English. Keep observed counts, timings and deployment status out of both files.
+- Keep machine-specific paths, endpoints and settings in local configuration, not in these files.
